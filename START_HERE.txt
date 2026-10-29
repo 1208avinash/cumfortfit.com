@@ -1,0 +1,7 @@
+CUSTOM FIT PRIME — OPENING THE WEBSITE
+
+1. Keep index.html and the assets folder together.
+2. Double-click OPEN_CUSTOM_FIT_PRIME.bat, or open index.html in Chrome/Edge.
+3. Allow internet access for the four-scene stitching film and web fonts.
+
+The film is a short browser montage that streams four clips in sequence. The site is a local prototype; appointment requests are not yet sent to a studio inbox.
