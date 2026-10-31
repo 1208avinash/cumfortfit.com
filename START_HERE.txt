@@ -1,7 +1,11 @@
-CUSTOM FIT PRIME — OPENING THE WEBSITE
+CUSTOM FIT PRIME — BURGUNDY LOOKBOOK PREVIEW
 
-1. Keep index.html and the assets folder together.
-2. Double-click OPEN_CUSTOM_FIT_PRIME.bat, or open index.html in Chrome/Edge.
-3. Allow internet access for the four-scene stitching film and web fonts.
+1. Extract this ZIP completely into a normal Windows folder.
+2. Keep index.html, lookbook.html and the assets folder together.
+3. Double-click OPEN_LOOKBOOK_PREVIEW.bat to open the redesigned second page.
+4. The page now begins with the campaign video. Use the player controls or the Enable sound button.
+5. Scroll to see the 22 boards grouped under four section headings.
+6. Double-click OPEN_HOME_PAGE.bat to open the homepage. Its navigation already links to the Lookbook.
 
-The film is a short browser montage that streams four clips in sequence. The site is a local prototype; appointment requests are not yet sent to a studio inbox.
+This is a review package only. Nothing has been uploaded to GitHub or Vercel.
+The included campaign MP4 is 13.354 seconds and remains the supplied draft, not the corrected 15-second final.

@@ -1,0 +1,14 @@
+{
+  "lookbook_designs": 22,
+  "chapters": {
+    "classic-necklines": 10,
+    "contemporary-looks": 5,
+    "sleeve-statements": 2,
+    "embellished-heritage": 5
+  },
+  "header_removed": true,
+  "brand_video_first_section": true,
+  "theme": "deep burgundy / antique gold / ivory",
+  "video_duration_seconds": 13.354,
+  "deployment": "review only; not pushed to GitHub or deployed"
+}

@@ -1,22 +1,40 @@
-# CUSTOM FIT PRIME — Full Luxury Indian Couture Website
+# CUSTOM FIT PRIME — Burgundy Lookbook Review
 
-## Open locally on Windows
-1. Download and extract the website ZIP.
-2. Keep `index.html` and the `assets` folder together.
-3. Double-click `OPEN_CUSTOM_FIT_PRIME.bat`, or open `index.html` in Chrome/Edge.
-4. An internet connection is required for the external stitching footage and Google Fonts. The fashion imagery and logo are local.
+This is a review-only version. It has not been pushed to GitHub or deployed to Vercel.
 
-## Website features
-- Cinematic Indian couture hero and CUSTOM FIT PRIME brand logo.
-- Short, approximately 8-second four-scene stitching montage: hand embroidery, dark couture detail, machine embroidery, and ivory floral stitching.
-- Montage play/pause, replay, full-screen, progress indicator, current-scene source link, reduced-motion and mobile data-saving behavior.
-- Eight AI-generated Indian fashion concept cards with working filters, design detail views, save buttons, and a moodboard stored locally in the visitor's browser.
-- Four-stage bespoke process, practical FAQs, and fitting enquiry brief form.
-- Responsive desktop/mobile navigation.
+## What's changed
+- Removed the announcement strip, navigation header, large text hero and intro block from the Lookbook page.
+- Moved the supplied brand-ad video to the very top of the page, full-width, with a poster image, controls and a separate sound-enable button.
+- Changed the page background to deep burgundy with antique-gold accents and ivory typography.
+- Divided the 22 unique uploaded blouse boards into four editorial chapters: Classic Necklines (10), Contemporary Silhouettes (5), Statement Sleeves (2), and Embellished & Heritage (5).
+- Kept the original full design boards, including front, back, neckline, sleeve and detail panels.
+- Retained search, category filters, design-detail view, save-to-lookbook, saved looks and enquiry brief controls.
+- Kept a simple Home link in the footer instead of a top navigation bar.
 
-## Before public launch
-- The video sources stream from Pexels and require an internet connection. Confirm current clip licensing/terms before public/commercial use; footage depicts generic sewing/craft, not the actual atelier.
-- The fashion images are AI-generated concepts, not completed client work.
-- The enquiry form creates/copies a request brief; it does not send to a business inbox or book an appointment yet.
-- Real business phone/email/address, verified social links, actual pricing/timelines/policies, privacy notice and terms have not been supplied and should be added before launch.
-- Test video playback, mobile rendering, keyboard accessibility and external assets on the actual hosting platform.
+## Open on Windows
+1. Extract the complete ZIP into a normal folder.
+2. Keep `index.html`, `lookbook.html`, `assets/` and the BAT files together at the same level.
+3. Double-click `OPEN_LOOKBOOK_PREVIEW.bat`.
+4. The new Lookbook opens with the ad at the top. Use the built-in video volume control or the Enable sound button.
+
+## Video note
+The supplied advertisement draft is 13.354 seconds. It is embedded at the top as provided; this review package does not claim that it has already been corrected to 15 seconds.
+
+## Image note
+The gallery includes the first 22 unique user-supplied blouse boards. New uploads can be added to the existing chapters or assigned to new chapters after review.
+
+## Deploy structure after approval
+```text
+index.html
+lookbook.html
+assets/
+  custom-fit-prime-logo.png
+  hero-emerald.webp
+  custom-fit-prime-ad-draft.mp4
+  lookbook/
+    blouse-look-01.webp
+    ...
+    blouse-look-22.webp
+```
+
+For Vercel static hosting use Framework Preset `Other`, Root Directory `./`, no build command, and Output Directory `.`.
