@@ -49,7 +49,8 @@ create policy attributes_public_read on public.attribute_definitions for select 
   and (p.homepage_visible or p.lookbook_visible)));
 create policy options_public_read on public.attribute_options for select to anon,authenticated using(active);
 create policy product_attribute_public_read on public.product_attribute_values for select to anon,authenticated
- using(exists(select 1 from public.products p where p.id=product_id and p.status='published'));
+ using(exists(select 1 from public.products p where p.id=product_id and p.status='published'
+  and (p.homepage_visible or p.lookbook_visible)));
 create policy product_attribute_options_public_read on public.product_attribute_option_values for select to anon,authenticated
  using(exists(select 1 from public.product_attribute_values v join public.products p on p.id=v.product_id
   where v.id=product_attribute_value_id and p.status='published'
