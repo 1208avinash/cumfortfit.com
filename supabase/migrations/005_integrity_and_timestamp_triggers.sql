@@ -190,7 +190,7 @@ end $$;
 -- Protect the studio's final active Owner account from accidental lockout.
 create or replace function private.guard_admin_owner_integrity()
 returns trigger language plpgsql security definer
-set search_path=pg_catalog,public as $
+set search_path=pg_catalog,public as $$
 declare active_other_owners integer;
 begin
  if tg_op='UPDATE' then
@@ -221,7 +221,7 @@ begin
  end if;
 
  if tg_op='DELETE' then return old; else return new; end if;
-end $;
+end $$;
 revoke all on function private.guard_admin_owner_integrity() from public,anon,authenticated;
 create trigger guard_admin_owner_integrity
  before update or delete on public.admin_memberships
