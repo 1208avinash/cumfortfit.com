@@ -16,6 +16,7 @@ create table public.attribute_options (
  unique(attribute_definition_id,value),
  unique(attribute_definition_id,id)
 );
+alter table public.product_attribute_values add constraint product_attribute_values_id_definition_uq unique(id,attribute_definition_id);
 create table public.product_attribute_values (
  id uuid primary key default gen_random_uuid(),
  product_id uuid not null references public.products(id) on delete restrict,
@@ -37,8 +38,6 @@ create table public.product_attribute_option_values (
  foreign key(attribute_definition_id,option_id)
   references public.attribute_options(attribute_definition_id,id) on delete restrict
 );
-alter table public.product_attribute_values add constraint product_attribute_values_id_definition_uq
- unique(id,attribute_definition_id);
 create table public.product_pricing (
  id uuid primary key default gen_random_uuid(),
  product_id uuid not null references public.products(id) on delete restrict,
