@@ -89,7 +89,7 @@ begin
  foreach editor_tab in array array['products','product_images','product_lookbook_chapters',
    'product_attribute_values','product_attribute_option_values','site_content'] loop
   if editor_tab in ('products','site_content') then
-   editor_predicate := 'private.current_admin_role() = ''editor''';
+   editor_predicate := 'private.current_admin_role() = ''editor'' and status = ''draft''';
   elsif editor_tab in ('product_images','product_lookbook_chapters','product_attribute_values') then
    editor_predicate := 'private.current_admin_role() = ''editor'' and exists (select 1 from public.products p where p.id = product_id and p.status = ''draft'')';
   else
