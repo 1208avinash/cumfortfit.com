@@ -40,23 +40,28 @@ create policy products_public_read on public.products for select to anon,authent
  using(status='published' and (homepage_visible or lookbook_visible));
 create policy images_public_read on public.product_images for select to anon,authenticated
  using(bucket_id='catalogue-public' and approved_at is not null and exists(
-  select 1 from public.products p where p.id=product_id and p.status='published'));
+  select 1 from public.products p where p.id=product_id and p.status='published'
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy product_chapters_public_read on public.product_lookbook_chapters for select to anon,authenticated
  using(exists(select 1 from public.products p where p.id=product_id and p.status='published' and p.lookbook_visible));
 create policy attributes_public_read on public.attribute_definitions for select to anon,authenticated
- using(active and exists(select 1 from public.products p where p.status='published'));
+ using(active and exists(select 1 from public.products p where p.status='published'
+  and (p.homepage_visible or p.lookbook_visible)));
 create policy options_public_read on public.attribute_options for select to anon,authenticated using(active);
 create policy product_attribute_public_read on public.product_attribute_values for select to anon,authenticated
  using(exists(select 1 from public.products p where p.id=product_id and p.status='published'));
 create policy product_attribute_options_public_read on public.product_attribute_option_values for select to anon,authenticated
  using(exists(select 1 from public.product_attribute_values v join public.products p on p.id=v.product_id
-  where v.id=product_attribute_value_id and p.status='published'));
+  where v.id=product_attribute_value_id and p.status='published'
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy pricing_public_read on public.product_pricing for select to anon,authenticated
  using(is_active and (valid_from is null or valid_from<=now()) and (valid_until is null or valid_until>now())
   and exists(select 1 from public.products p where p.id=product_id and p.record_type='orderable_product'
-   and p.status='published' and p.pricing_public));
+   and p.status='published' and p.pricing_public
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy availability_public_read on public.product_availability for select to anon,authenticated
- using(exists(select 1 from public.products p where p.id=product_id and p.status='published' and p.record_type='orderable_product'));
+ using(exists(select 1 from public.products p where p.id=product_id and p.status='published' and p.record_type='orderable_product'
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy site_content_public_read on public.site_content for select to anon,authenticated using(status='published');
 
 -- Memberships and audit are private to owner/admin. Membership self-read supports app role resolution.
