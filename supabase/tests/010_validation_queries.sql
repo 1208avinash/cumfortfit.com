@@ -28,3 +28,36 @@ select id,name,public,file_size_limit,allowed_mime_types from storage.buckets
  where id in ('catalogue-staging','catalogue-public');
 -- Auth/RLS role matrix must additionally be exercised with actual anon, ordinary user,
 -- editor, admin and owner JWTs; SQL structural queries do not replace those negative tests.
+
+-- 8) Owner safety guard must be installed.
+select tgname, tgenabled
+ from pg_trigger
+ where tgrelid='public.admin_memberships'::regclass
+   and not tgisinternal
+   and tgname='guard_admin_owner_integrity';
+select proname
+ from pg_proc
+ where pronamespace='private'::regnamespace
+   and proname='guard_admin_owner_integrity';
+
+-- 9) Membership grants: authenticated clients may not delete memberships directly.
+select
+ has_table_privilege('authenticated','public.admin_memberships','SELECT') as can_read_memberships,
+ has_table_privilege('authenticated','public.admin_memberships','INSERT') as can_insert_memberships,
+ has_table_privilege('authenticated','public.admin_memberships','UPDATE') as can_update_memberships,
+ has_table_privilege('authenticated','public.admin_memberships','DELETE') as can_delete_memberships;
+
+-- 10) Confirm editor policies are draft-scoped and do not grant taxonomy/pricing writes.
+select tablename, policyname, cmd, qual, with_check
+ from pg_policies
+ where schemaname='public'
+   and (policyname like '%_editor_%' or policyname like '%_admin_%')
+ order by tablename,policyname;
+
+-- 11) Review active Owner count before and after any team-management test.
+select count(*) as active_owner_count
+ from public.admin_memberships
+ where role='owner' and active;
+
+-- These are inspection queries, not a substitute for negative tests executed with
+-- actual anon, ordinary-user, editor, admin and owner JWTs on a disposable project.
