@@ -76,7 +76,7 @@ begin
  'attribute_definitions','attribute_options','product_attribute_values','product_attribute_option_values',
  'product_pricing','product_availability','site_content'] loop
   execute format('create policy %I on public.%I for select to authenticated using(private.current_admin_role() in (''owner'',''admin'',''editor''))',tab||'_staff_read',tab);
-  execute format('create policy %I on public.%I for insert to authenticated with check((private.current_admin_role() in (''owner'',''admin'')) or (private.current_admin_role()=''editor'' and %I.status=''draft''))',tab||'_staff_insert',tab,tab);
+  execute format('create policy %I on public.%I for insert to authenticated with check(private.current_admin_role() in (''owner'',''admin'',''editor''))',tab||'_staff_insert',tab);
   execute format('create policy %I on public.%I for update to authenticated using(private.current_admin_role() in (''owner'',''admin'',''editor'')) with check(private.current_admin_role() in (''owner'',''admin'',''editor''))',tab||'_staff_update',tab);
   execute format('create policy %I on public.%I for delete to authenticated using(private.current_admin_role() in (''owner'',''admin''))',tab||'_staff_delete',tab);
  end loop;
