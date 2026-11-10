@@ -82,6 +82,6 @@ begin
  end loop;
 end $$;
 revoke insert,update,delete on public.admin_audit_logs from anon,authenticated;
-revoke insert,update,delete on public.admin_memberships from anon,authenticated;
+revoke delete on public.admin_memberships from anon,authenticated;
 revoke insert,update,delete on public.product_slug_history from anon,authenticated;
 commit;
