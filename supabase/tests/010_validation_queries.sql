@@ -61,3 +61,56 @@ select count(*) as active_owner_count
 
 -- These are inspection queries, not a substitute for negative tests executed with
 -- actual anon, ordinary-user, editor, admin and owner JWTs on a disposable project.
+
+-- 12) Hard assertions for critical schema/security invariants.
+do $$
+declare missing text;
+begin
+ select string_agg(required.table_name, ', ')
+ into missing
+ from (values
+  ('products'),('product_images'),('product_pricing'),('product_availability'),
+  ('admin_memberships'),('admin_audit_logs'),('product_slug_history')
+ ) as required(table_name)
+ where to_regclass('public.'||required.table_name) is null;
+ if missing is not null then
+  raise exception 'Required tables missing: %', missing;
+ end if;
+
+ if not (select relrowsecurity from pg_class where oid='public.admin_memberships'::regclass) then
+  raise exception 'RLS is not enabled on admin_memberships';
+ end if;
+ if not (select relrowsecurity from pg_class where oid='public.products'::regclass) then
+  raise exception 'RLS is not enabled on products';
+ end if;
+ if not has_table_privilege('authenticated','public.admin_memberships','SELECT')
+    or not has_table_privilege('authenticated','public.admin_memberships','INSERT')
+    or not has_table_privilege('authenticated','public.admin_memberships','UPDATE') then
+  raise exception 'Expected authenticated membership privileges are missing';
+ end if;
+ if has_table_privilege('authenticated','public.admin_memberships','DELETE') then
+  raise exception 'Authenticated role unexpectedly has direct membership DELETE privilege';
+ end if;
+ if not exists (
+  select 1 from pg_trigger
+  where tgrelid='public.admin_memberships'::regclass
+    and tgname='guard_admin_owner_integrity' and not tgisinternal
+ ) then
+  raise exception 'Last-active-Owner protection trigger is missing';
+ end if;
+ if not exists (
+  select 1 from pg_proc
+  where pronamespace='private'::regnamespace
+    and proname='current_admin_role'
+ ) then
+  raise exception 'Admin role resolver function is missing';
+ end if;
+ if exists (
+  select 1 from pg_policies
+  where schemaname='public' and tablename='products'
+    and policyname='products_public_read'
+    and coalesce(qual,'') not ilike '%homepage_visible%'
+ ) then
+  raise exception 'Public product policy does not restrict visibility flags';
+ end if;
+end $$;
