@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f3ee">
+  <title>Studio Admin · CUSTOM FIT PRIME</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0"></script>
+  <script src="./config.js"></script>
+  <script src="./admin.js" defer></script>
+</head>
+<body>
+  <main id="app" class="app-shell">
+    <section id="setup-screen" class="auth-wrap" hidden>
+      <div class="auth-card">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO CONTROL ROOM</p><h1>Connect your studio.</h1>
+        <p class="muted">The admin interface is ready. Add the Supabase project URL and publishable key in the local <code>admin/config.js</code> file to enable secure sign-in.</p>
+        <div class="notice">Configuration is intentionally not stored in this page. Never put a Supabase service-role key in browser code.</div>
+        <p class="small">See <a href="./README.md">admin setup instructions</a>.</p>
+      </div>
+    </section>
+    <section id="login-screen" class="auth-wrap" hidden>
+      <form id="login-form" class="auth-card">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO CONTROL ROOM</p><h1>Welcome back.</h1>
+        <p class="muted">Sign in with an invited studio account.</p>
+        <label>Email address<input id="email" type="email" autocomplete="username" required></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Sign in securely</button>
+        <p id="login-message" class="message" role="status"></p>
+        <p class="small">Admin access is invitation-only. <a href="../index.html">Return to the public website</a></p>
+      </form>
+    </section>
+    <section id="dashboard-screen" class="workspace" hidden>
+      <aside class="sidebar">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO ADMIN</p>
+        <nav id="side-nav" aria-label="Admin sections">
+          <button class="nav-item active" data-view="overview">Overview</button>
+          <button class="nav-item" data-view="catalogue">Catalogue</button>
+          <button class="nav-item" data-view="lookbook">Lookbook</button>
+          <button class="nav-item" data-view="categories">Categories</button>
+          <button class="nav-item" data-view="media">Image approvals</button>
+          <button class="nav-item" data-view="content">Site content</button>
+          <button class="nav-item owner-only" data-view="team">Team & access</button>
+          <button class="nav-item admin-only" data-view="activity">Audit history</button>
+        </nav>
+        <div class="sidebar-bottom"><a href="../index.html" target="_blank" rel="noopener">View public website ↗</a><button id="sign-out" class="text-button">Sign out</button></div>
+      </aside>
+      <section class="main-panel">
+        <header class="topbar"><div><p class="eyebrow">CUSTOM FIT PRIME / ADMIN</p><h1 id="view-title">Overview</h1></div><div class="user-chip"><span id="user-email"></span><b id="user-role"></b></div></header>
+        <div id="workspace-content" class="content-area">
+          <div class="welcome"><div><p class="eyebrow">YOUR STUDIO, IN FOCUS</p><h2>Good work begins with a clear view.</h2><p class="muted">Manage products, design references and the visual stories that shape the CUSTOM FIT PRIME catalogue.</p></div><div class="welcome-mark">CFP</div></div>
+          <div class="stat-grid">
+            <article class="stat-card"><span>Catalogue records</span><strong>—</strong><small>Connect the database to load records</small></article>
+            <article class="stat-card"><span>Published designs</span><strong>—</strong><small>Live catalogue visibility</small></article>
+            <article class="stat-card"><span>Pending image reviews</span><strong>—</strong><small>Staging approvals</small></article>
+            <article class="stat-card"><span>Draft content</span><strong>—</strong><small>Work awaiting publication</small></article>
+          </div>
+          <div class="section-card"><div><p class="eyebrow">IMPLEMENTATION STATUS</p><h3>Secure foundation</h3><p class="muted">You are signed in with an authorised studio role. Catalogue data remains unavailable until the hardened database migration is reviewed and separately approved for execution.</p></div><span class="status-pill">AUTHENTICATED</span></div>
+          <p id="workspace-message" class="message" role="status"></p>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
