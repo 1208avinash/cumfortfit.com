@@ -40,23 +40,29 @@ create policy products_public_read on public.products for select to anon,authent
  using(status='published' and (homepage_visible or lookbook_visible));
 create policy images_public_read on public.product_images for select to anon,authenticated
  using(bucket_id='catalogue-public' and approved_at is not null and exists(
-  select 1 from public.products p where p.id=product_id and p.status='published'));
+  select 1 from public.products p where p.id=product_id and p.status='published'
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy product_chapters_public_read on public.product_lookbook_chapters for select to anon,authenticated
  using(exists(select 1 from public.products p where p.id=product_id and p.status='published' and p.lookbook_visible));
 create policy attributes_public_read on public.attribute_definitions for select to anon,authenticated
- using(active and exists(select 1 from public.products p where p.status='published'));
+ using(active and exists(select 1 from public.products p where p.status='published'
+  and (p.homepage_visible or p.lookbook_visible)));
 create policy options_public_read on public.attribute_options for select to anon,authenticated using(active);
 create policy product_attribute_public_read on public.product_attribute_values for select to anon,authenticated
- using(exists(select 1 from public.products p where p.id=product_id and p.status='published'));
+ using(exists(select 1 from public.products p where p.id=product_id and p.status='published'
+  and (p.homepage_visible or p.lookbook_visible)));
 create policy product_attribute_options_public_read on public.product_attribute_option_values for select to anon,authenticated
  using(exists(select 1 from public.product_attribute_values v join public.products p on p.id=v.product_id
-  where v.id=product_attribute_value_id and p.status='published'));
+  where v.id=product_attribute_value_id and p.status='published'
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy pricing_public_read on public.product_pricing for select to anon,authenticated
  using(is_active and (valid_from is null or valid_from<=now()) and (valid_until is null or valid_until>now())
   and exists(select 1 from public.products p where p.id=product_id and p.record_type='orderable_product'
-   and p.status='published' and p.pricing_public));
+   and p.status='published' and p.pricing_public
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy availability_public_read on public.product_availability for select to anon,authenticated
- using(exists(select 1 from public.products p where p.id=product_id and p.status='published' and p.record_type='orderable_product'));
+ using(exists(select 1 from public.products p where p.id=product_id and p.status='published' and p.record_type='orderable_product'
+   and (p.homepage_visible or p.lookbook_visible)));
 create policy site_content_public_read on public.site_content for select to anon,authenticated using(status='published');
 
 -- Memberships and audit are private to owner/admin. Membership self-read supports app role resolution.
@@ -69,19 +75,37 @@ create policy audit_admin_read on public.admin_audit_logs for select to authenti
 create policy slug_history_admin_read on public.product_slug_history for select to authenticated
  using(private.current_admin_role() in ('owner','admin'));
 
--- Catalogue writes are explicitly role-scoped; editor updates further constrained by DB triggers.
+-- All staff may read the private catalogue after role resolution.
+-- Owners/Admins can maintain taxonomy, attributes, pricing, availability and publishing.
+-- Editors may work only on draft catalogue records, staging images and draft site content.
 do $$
-declare tab text;
+declare
+ tab text;
+ editor_tab text;
+ editor_predicate text;
 begin
  foreach tab in array array['categories','lookbook_chapters','products','product_images','product_lookbook_chapters',
  'attribute_definitions','attribute_options','product_attribute_values','product_attribute_option_values',
  'product_pricing','product_availability','site_content'] loop
   execute format('create policy %I on public.%I for select to authenticated using(private.current_admin_role() in (''owner'',''admin'',''editor''))',tab||'_staff_read',tab);
-  execute format('create policy %I on public.%I for insert to authenticated with check(private.current_admin_role() in (''owner'',''admin'',''editor''))',tab||'_staff_insert',tab);
-  execute format('create policy %I on public.%I for update to authenticated using(private.current_admin_role() in (''owner'',''admin'',''editor'')) with check(private.current_admin_role() in (''owner'',''admin'',''editor''))',tab||'_staff_update',tab);
+  execute format('create policy %I on public.%I for insert to authenticated with check(private.current_admin_role() in (''owner'',''admin''))',tab||'_admin_insert',tab);
+  execute format('create policy %I on public.%I for update to authenticated using(private.current_admin_role() in (''owner'',''admin'')) with check(private.current_admin_role() in (''owner'',''admin''))',tab||'_admin_update',tab);
+ end loop;
+
+ foreach editor_tab in array array['products','product_images','product_lookbook_chapters',
+   'product_attribute_values','product_attribute_option_values','site_content'] loop
+  if editor_tab in ('products','site_content') then
+   editor_predicate := 'private.current_admin_role() = ''editor'' and status = ''draft''';
+  elsif editor_tab in ('product_images','product_lookbook_chapters','product_attribute_values') then
+   editor_predicate := 'private.current_admin_role() = ''editor'' and exists (select 1 from public.products p where p.id = product_id and p.status = ''draft'')';
+  else
+   editor_predicate := 'private.current_admin_role() = ''editor'' and exists (select 1 from public.product_attribute_values v join public.products p on p.id = v.product_id where v.id = product_attribute_value_id and p.status = ''draft'')';
+  end if;
+  execute format('create policy %I on public.%I for insert to authenticated with check (%s)',editor_tab||'_editor_insert',editor_tab,editor_predicate);
+  execute format('create policy %I on public.%I for update to authenticated using (%s) with check (%s)',editor_tab||'_editor_update',editor_tab,editor_predicate,editor_predicate);
  end loop;
 end $$;
 revoke insert,update,delete on public.admin_audit_logs from anon,authenticated;
-revoke insert,update,delete on public.admin_memberships from anon,authenticated;
+revoke delete on public.admin_memberships from anon,authenticated;
 revoke insert,update,delete on public.product_slug_history from anon,authenticated;
 commit;

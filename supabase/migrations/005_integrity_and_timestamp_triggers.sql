@@ -186,4 +186,45 @@ begin
   execute format('create trigger %I before update on public.%I for each row execute function private.set_updated_at()',t||'_updated_at',t);
  end loop;
 end $$;
+
+-- Protect the studio's final active Owner account from accidental lockout.
+create or replace function private.guard_admin_owner_integrity()
+returns trigger language plpgsql security definer
+set search_path=pg_catalog,public as $$
+declare active_other_owners integer;
+begin
+ if tg_op='UPDATE' then
+  if new.user_id is distinct from old.user_id
+     or new.invited_by is distinct from old.invited_by then
+   raise exception 'Admin membership identity fields are immutable';
+  end if;
+ end if;
+
+ if old.role='owner' and old.active then
+  if tg_op='DELETE' then
+   perform pg_advisory_xact_lock(20261110,1);
+   select count(*) into active_other_owners
+   from public.admin_memberships
+   where role='owner' and active and id<>old.id;
+   if active_other_owners=0 then
+    raise exception 'Cannot remove or deactivate the last active Owner';
+   end if;
+  elsif new.role is distinct from 'owner' or not new.active then
+   perform pg_advisory_xact_lock(20261110,1);
+   select count(*) into active_other_owners
+   from public.admin_memberships
+   where role='owner' and active and id<>old.id;
+   if active_other_owners=0 then
+    raise exception 'Cannot remove or deactivate the last active Owner';
+   end if;
+  end if;
+ end if;
+
+ if tg_op='DELETE' then return old; else return new; end if;
+end $$;
+revoke all on function private.guard_admin_owner_integrity() from public,anon,authenticated;
+create trigger guard_admin_owner_integrity
+ before update or delete on public.admin_memberships
+ for each row execute function private.guard_admin_owner_integrity();
+
 commit;
