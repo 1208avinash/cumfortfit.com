@@ -100,35 +100,35 @@ begin
  values(actor,case when actor is null then 'system' else 'user' end,tg_op, tg_table_name,
    coalesce((newj->>'id')::uuid,(oldj->>'id')::uuid),oldj,newj);
  if tg_op='DELETE' then return old; else return new; end if;
-end $;
+end $$;
 
 
 -- Editors may create drafts, but cannot create published or publicly promoted records.
 create or replace function private.guard_editor_product_insert()
-returns trigger language plpgsql security definer set search_path=pg_catalog,public,private as $
+returns trigger language plpgsql security definer set search_path=pg_catalog,public,private as $$
 begin
  if private.current_admin_role()='editor' and
    (new.status<>'draft' or new.homepage_visible or new.lookbook_visible or new.pricing_public) then
   raise exception 'Editors may only create unpublished, non-public products';
  end if;
  return new;
-end $;
+end $$;
 create trigger guard_editor_product_insert before insert on public.products
  for each row execute function private.guard_editor_product_insert();
 
 create or replace function private.guard_editor_content_insert()
-returns trigger language plpgsql security definer set search_path=pg_catalog,public,private as $
+returns trigger language plpgsql security definer set search_path=pg_catalog,public,private as $$
 begin
  if private.current_admin_role()='editor' and new.status<>'draft' then
   raise exception 'Editors may only create draft site content';
  end if;
  return new;
-end $;
+end $$;
 create trigger guard_editor_content_insert before insert on public.site_content
  for each row execute function private.guard_editor_content_insert();
 
 create or replace function private.guard_editor_image_write()
-returns trigger language plpgsql security definer set search_path=pg_catalog,public,private as $
+returns trigger language plpgsql security definer set search_path=pg_catalog,public,private as $$
 begin
  if private.current_admin_role()='editor' then
   if tg_op='INSERT' then
@@ -142,14 +142,14 @@ begin
   end if;
  end if;
  if tg_op='DELETE' then return old; else return new; end if;
-end $;
+end $$;
 create trigger guard_editor_image_insert before insert on public.product_images
  for each row execute function private.guard_editor_image_write();
 create trigger guard_editor_image_update before update on public.product_images
  for each row execute function private.guard_editor_image_write();
 
 create or replace function private.prevent_product_type_downgrade()
-returns trigger language plpgsql set search_path=pg_catalog,public as $
+returns trigger language plpgsql set search_path=pg_catalog,public as $$
 begin
  if old.record_type='orderable_product' and new.record_type='design_reference'
    and (exists(select 1 from public.product_pricing where product_id=old.id)
@@ -157,7 +157,7 @@ begin
   raise exception 'Remove pricing and availability before changing an orderable product to a design reference';
  end if;
  return new;
-end $;
+end $$;
 create trigger prevent_product_type_downgrade before update of record_type on public.products
  for each row execute function private.prevent_product_type_downgrade();
 

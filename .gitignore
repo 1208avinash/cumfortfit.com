@@ -1,2 +1,3 @@
 # Local Supabase browser configuration (publishable key only)
 /admin/config.js
+/dist/

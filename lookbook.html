@@ -102,9 +102,10 @@
     @media(max-width:760px){.film-top-overlay{font-size:6px;letter-spacing:.14em;top:10px}.film-caption-wide{padding:14px 5% 18px;align-items:flex-start;flex-direction:column}.film-caption-actions{gap:10px}.gallery-head-burgundy{align-items:flex-start;flex-direction:column;gap:16px}.gallery-head-burgundy p{max-width:600px}.chapter-links{gap:6px}.chapter-links a{font-size:7px;padding:8px 9px}.category-block{padding:32px 0 36px}.category-head{align-items:flex-start}.design-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 12px}.card-info h3{font-size:19px}.card-code{display:none}.view-btn{opacity:1;transform:none;inset:auto 8px 8px 8px;padding:10px}.closing-actions{justify-content:flex-start}}
     @media(max-width:430px){.design-grid{grid-template-columns:1fr}.design-image{max-width:420px;margin:auto;width:100%}.category-count{font-size:7px}.chapter-links a{flex:1 1 calc(50% - 6px);justify-content:space-between}.film-top-overlay span:last-child{display:none}}
 
+    .public-catalogue-empty{padding:22px 0;color:var(--muted);font:italic 20px var(--serif)}
   </style>
 </head>
-<body>
+<body data-public-catalogue="lookbook">
 <a class="skip-link" href="#design-gallery">Skip to designs</a>
 <main id="main">
 
@@ -215,7 +216,7 @@
   <script>
     (()=>{
       const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-      const cards=$$('.design-card');let active=null;let filter='all';let search='';let toastTimer;
+      let cards=$$('.category-block .design-card');let active=null;let filter='all';let search='';let toastTimer;
       const KEY='cfp-lookbook-saved-v1';
       let saved=[];try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');saved=Array.isArray(v)?v:[]}catch{saved=[]}
       function notify(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600)}
@@ -230,9 +231,11 @@
       function renderSaved(){const list=$('#saved-list');list.replaceChildren();$('#saved-empty').style.display=saved.length?'none':'block';saved.forEach(d=>{const row=document.createElement('div');row.className='saved-row';const img=document.createElement('img');img.src=d.image;img.alt='';const meta=document.createElement('div');const name=document.createElement('strong');name.textContent=d.title;const type=document.createElement('small');type.textContent=d.type;meta.append(name,type);const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Remove '+d.title);remove.addEventListener('click',()=>{saved=saved.filter(x=>x.id!==d.id);persist();notify('Removed saved look.')});row.append(img,meta,remove);list.append(row)})}
       function copyText(text){if(navigator.clipboard?.writeText){navigator.clipboard.writeText(text).then(()=>notify('Enquiry brief copied.')).catch(()=>fallbackCopy(text));return}fallbackCopy(text)}
       function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.append(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch{}ta.remove();notify(ok?'Enquiry brief copied.':'Copy unavailable. Please select and copy the enquiry details manually.')}
-      function applyFilters(){let shown=0;cards.forEach(card=>{const cats=card.dataset.category.split(' ');const matchCategory=filter==='all'||cats.includes(filter);const hay=(card.dataset.title+' '+card.dataset.type+' '+card.dataset.description).toLowerCase();const matchSearch=!search||hay.includes(search);const visible=matchCategory&&matchSearch;card.hidden=!visible;if(visible)shown++});$$('.category-block').forEach(group=>{group.hidden=!$$('.design-card',group).some(card=>!card.hidden)});$('#gallery-status').textContent=`Showing ${shown} of ${cards.length} design boards`;$('#empty-state').classList.toggle('show',shown===0)}
-      $$('.filter').forEach(btn=>btn.addEventListener('click',()=>{$$('.filter').forEach(b=>{const on=b===btn;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});filter=btn.dataset.filter;applyFilters()}));$('#look-search').addEventListener('input',e=>{search=e.target.value.trim().toLowerCase();applyFilters()});
-      cards.forEach(card=>{$('.save-btn',card).addEventListener('click',e=>{e.stopPropagation();toggleSave(cardData(card))});$('.view-btn',card).addEventListener('click',()=>openDetail(card));$('.design-image img',card).addEventListener('click',()=>openDetail(card))});
+      function bindCards(){cards=$$('.category-block .design-card');cards.forEach(card=>{if(card.dataset.interactionsBound)return;card.dataset.interactionsBound='true';$('.save-btn',card).addEventListener('click',e=>{e.stopPropagation();toggleSave(cardData(card))});$('.view-btn',card).addEventListener('click',()=>openDetail(card));$('.design-image img',card).addEventListener('click',()=>openDetail(card))})}
+      function applyFilters(){cards=$$('.category-block .design-card');let shown=0;cards.forEach(card=>{const cats=card.dataset.category.split(' ');const matchCategory=filter==='all'||cats.includes(filter);const hay=(card.dataset.title+' '+card.dataset.type+' '+card.dataset.description).toLowerCase();const matchSearch=!search||hay.includes(search);const visible=matchCategory&&matchSearch;card.hidden=!visible;if(visible)shown++});$$('.category-block').forEach(group=>{group.hidden=!$$('.design-card',group).some(card=>!card.hidden)});$('#gallery-status').textContent=`Showing ${shown} of ${cards.length} design boards`;$('#empty-state').classList.toggle('show',shown===0)}
+      $('.filters').addEventListener('click',event=>{const btn=event.target.closest('.filter');if(!btn)return;$$('.filter').forEach(b=>{const on=b===btn;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});filter=btn.dataset.filter;applyFilters()});$('#look-search').addEventListener('input',e=>{search=e.target.value.trim().toLowerCase();applyFilters()});
+      bindCards();
+      window.addEventListener('cfp:catalogue-updated',()=>{bindCards();updateSaved();applyFilters()});
       $('#detail-save').addEventListener('click',()=>{if(active)toggleSave(active)});$('#detail-enquire').addEventListener('click',()=>openEnquiry(active));$$('[data-close-detail]').forEach(b=>b.addEventListener('click',()=>closeDialog($('#detail-dialog'))));
       $$('[data-enquire]').forEach(b=>b.addEventListener('click',()=>openEnquiry()));$('#enquiry-form').addEventListener('submit',e=>{e.preventDefault();const f=new FormData(e.currentTarget);const lines=['CUSTOM FIT PRIME — LOOKBOOK ENQUIRY','Name: '+f.get('name'),'Phone or email: '+f.get('contact'),'Occasion: '+(f.get('occasion')||'Not specified'),'Selected design: '+(f.get('design')||'Not specified'),'Preferences: '+(f.get('notes')||'Not specified')];copyText(lines.join('\n'));closeDialog($('#enquiry-dialog'));e.currentTarget.reset()});$$('[data-close-enquiry]').forEach(b=>b.addEventListener('click',()=>closeDialog($('#enquiry-dialog'))));
       function openSaved(){renderSaved();$('#saved-dialog').showModal()}$('#open-saved-bottom').addEventListener('click',openSaved);$$('[data-close-saved]').forEach(b=>b.addEventListener('click',()=>closeDialog($('#saved-dialog'))));$('#copy-saved').addEventListener('click',()=>copyText('CUSTOM FIT PRIME — SAVED LOOKS\n\n'+(saved.length?saved.map((d,i)=>`${i+1}. ${d.title} (${d.id}) — ${d.type}`).join('\n'):'No saved looks yet.')));$('#enquire-saved').addEventListener('click',()=>{const brief=saved.length?'I would like to discuss these saved designs: '+saved.map(d=>d.title+' ('+d.id+')').join(', '):'I would like to discuss a custom blouse design.';closeDialog($('#saved-dialog'));openEnquiry();$('#client-notes').value=brief});
@@ -240,5 +243,7 @@
       const film=$('#brand-film');const soundButton=$('#enable-film-sound');if(film){const saveData=Boolean(navigator.connection&&navigator.connection.saveData);const reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(!saveData&&!reduceMotion){film.muted=true;film.play().catch(()=>{})}}if(film&&soundButton){soundButton.addEventListener('click',()=>{film.muted=false;film.volume=.85;film.play().catch(()=>{});soundButton.textContent='Sound enabled';soundButton.disabled=true})}updateSaved();applyFilters();
     })();
   </script>
+  <script src="admin/config.js"></script>
+  <script type="module" src="public-catalogue.mjs"></script>
 </body>
 </html>
