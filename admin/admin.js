@@ -813,11 +813,13 @@ import {
 
       const fields = makeElement("div", "editor-fields");
       definition.fields.forEach((key) => fieldControl(fields, key, content[key], {
-        multiline: ["body", "supporting_body"].includes(key),
-        rows: key === "body" ? 4 : 3,
+        multiline: ["body", "supporting_body", "heading"].includes(key),
+        rows: ["body", "heading"].includes(key) ? 4 : 3,
         contentField: true,
         help: ["image_path", "poster_path"].includes(key)
           ? "Use the storage path of an approved catalogue-public image. Local assets are not promoted automatically."
+          : key === "heading"
+            ? "Use a new line for a line break and *text* for emphasis."
           : null,
       }));
       renderStructuredFields(fields, definition, content);

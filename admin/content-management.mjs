@@ -189,35 +189,75 @@ export async function approveProductImage(client, image, role, actorId) {
   }
   const downloaded = await client.storage.from("catalogue-staging").download(image.storage_path);
   const file = throwOnError(downloaded);
-  const uploaded = await client.storage.from("catalogue-public").upload(image.storage_path, file, {
-    contentType: file.type || "application/octet-stream",
-    upsert: false,
-  });
-  if (uploaded.error) throw uploaded.error;
-
+  const approvedAt = new Date().toISOString();
   const updated = await client.from("product_images").update({
     bucket_id: "catalogue-public",
-    approved_at: new Date().toISOString(),
+    approved_at: approvedAt,
     approved_by: actorId,
-  }).eq("id", image.id).select(IMAGE_FIELDS).single();
-  if (updated.error) {
+  }).eq("id", image.id)
+    .eq("bucket_id", "catalogue-staging")
+    .is("approved_at", null)
+    .select(IMAGE_FIELDS)
+    .maybeSingle();
+  if (updated.error) throw updated.error;
+  const approvedImage = updated.data;
+  if (!approvedImage || approvedImage.id !== image.id ||
+    approvedImage.product_id !== image.product_id ||
+    approvedImage.storage_path !== image.storage_path ||
+    approvedImage.bucket_id !== "catalogue-public" ||
+    !approvedImage.approved_at || approvedImage.approved_by !== actorId) {
+    throw new Error("Image approval did not update the expected staging record. Reload the image and try again.");
+  }
+
+  try {
+    const uploaded = await client.storage.from("catalogue-public").upload(image.storage_path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+    if (uploaded.error) throw uploaded.error;
+  } catch (uploadError) {
     try {
       await removeObject(client, "catalogue-public", image.storage_path);
     } catch (cleanupError) {
-      throw new Error(`${updated.error.message} The public copy could not be cleaned up: ${cleanupError.message}`);
+      return {
+        image: approvedImage,
+        warning: `Public image upload failed: ${uploadError.message}. The public object could not be removed: ${cleanupError.message}. The image record remains approved; verify the public object and retry cleanup before changing its approval.`,
+      };
     }
-    throw updated.error;
+
+    try {
+      const reverted = await client.from("product_images").update({
+        bucket_id: "catalogue-staging",
+        approved_at: null,
+        approved_by: null,
+      }).eq("id", image.id)
+        .eq("bucket_id", "catalogue-public")
+        .eq("approved_at", approvedImage.approved_at)
+        .eq("approved_by", actorId)
+        .select(IMAGE_FIELDS)
+        .maybeSingle();
+      if (reverted.error) throw reverted.error;
+      const stagingImage = reverted.data;
+      if (!stagingImage || stagingImage.id !== image.id ||
+        stagingImage.bucket_id !== "catalogue-staging" ||
+        stagingImage.approved_at !== null || stagingImage.approved_by !== null) {
+        throw new Error("The approval rollback did not update the expected image record.");
+      }
+    } catch (rollbackError) {
+      throw new Error(`Public image upload failed: ${uploadError.message}. The public object was removed, but the approval record could not be reverted: ${rollbackError.message}. Verify the database record before retrying.`);
+    }
+    throw uploadError;
   }
 
   try {
     await removeObject(client, "catalogue-staging", image.storage_path);
   } catch (cleanupError) {
     return {
-      image: updated.data,
+      image: approvedImage,
       warning: `The image is approved, but its staging copy could not be removed: ${cleanupError.message}`,
     };
   }
-  return { image: updated.data, warning: "" };
+  return { image: approvedImage, warning: "" };
 }
 
 export async function hideProductImage(client, image, role) {

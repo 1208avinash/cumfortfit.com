@@ -1,6 +1,187 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectVisibleCatalogue } from "./public-catalogue.mjs";
+import {
+  preparePublishedHomepage,
+  renderPublishedHomepage,
+  selectVisibleCatalogue,
+} from "./public-catalogue.mjs";
+
+const publishedRelease = { id: "release-1", status: "published" };
+
+function renderHeroHeading(headingText) {
+  const heading = {
+    children: [],
+    replaceChildren(...children) { this.children = children; },
+  };
+  const hero = {
+    dataset: { homepageSection: "hero" },
+    querySelector(selector) { return selector === "h1" ? heading : null; },
+  };
+  const main = {
+    querySelectorAll() { return [hero]; },
+    append() {},
+  };
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    querySelector() { return main; },
+    createTextNode(text) { return { nodeType: 3, textContent: text }; },
+    createElement(tagName) {
+      return {
+        nodeType: 1,
+        tagName,
+        children: [],
+        append(child) { this.children.push(child); },
+      };
+    },
+  };
+
+  try {
+    const homepage = preparePublishedHomepage(publishedRelease, [{
+      section_key: "hero",
+      section_type: "hero",
+      content: { heading: headingText },
+      is_visible: true,
+      sort_order: 0,
+    }], [], []);
+    renderPublishedHomepage(homepage, { url: "https://project.supabase.co" });
+    return heading.children;
+  } finally {
+    globalThis.document = originalDocument;
+  }
+}
+
+test("published homepage content renders into the existing section using text and validated URLs", () => {
+  const image = {};
+  const arrow = {};
+  const heading = { children: [], replaceChildren(...children) { this.children = children; } };
+  const button = {
+    children: [arrow],
+    querySelector(selector) { return selector === ".arrow" ? arrow : null; },
+    replaceChildren(...children) { this.children = children; },
+    append(child) { this.children.push(child); },
+  };
+  const hero = {
+    dataset: { homepageSection: "hero" },
+    children: [],
+    selectors: new Map([
+      [".eyebrow", {}],
+      ["h1", heading],
+      [".hero-copy", {}],
+      [".hero-image img", image],
+      [".hero-actions a.button.light", button],
+    ]),
+    querySelector(selector) { return this.selectors.get(selector) || null; },
+  };
+  const main = {
+    children: [hero],
+    querySelectorAll() { return [hero]; },
+    append(...children) { this.children = children; },
+  };
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    querySelector() { return main; },
+    createTextNode(text) { return { textContent: text }; },
+  };
+
+  try {
+    const result = preparePublishedHomepage(publishedRelease, [
+      {
+        section_key: "hero",
+        section_type: "hero",
+        content: {
+          eyebrow: "Studio",
+          heading: "<img src=x onerror=alert(1)>",
+          body: "A considered fit.",
+          image_path: "homepage/hero.webp",
+          image_alt: "Couture model",
+          primary_cta_label: "Explore",
+          primary_cta_href: "#collections",
+        },
+        is_visible: true,
+        sort_order: 0,
+      },
+    ], [], []);
+
+    renderPublishedHomepage(result, { url: "https://project.supabase.co" });
+
+    assert.deepEqual(heading.children, [{ textContent: "<img src=x onerror=alert(1)>" }]);
+    assert.equal(image.src, "https://project.supabase.co/storage/v1/object/public/catalogue-public/homepage/hero.webp");
+    assert.equal(image.alt, "Couture model");
+    assert.equal(button.children[0].textContent, "Explore ");
+    assert.equal(button.children[1], arrow);
+    assert.equal(hero.hidden, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test("homepage heading newlines render as explicit line breaks", () => {
+  const children = renderHeroHeading("The art of\na perfect fit.");
+
+  assert.deepEqual(children.map((node) =>
+    node.tagName ? node.tagName : node.textContent), ["The art of", "br", "a perfect fit."]);
+});
+
+test("homepage heading *emphasis* renders with an explicit emphasis element", () => {
+  const children = renderHeroHeading("The art of *a perfect fit*.");
+
+  assert.equal(children[0].textContent, "The art of ");
+  assert.equal(children[1].tagName, "em");
+  assert.deepEqual(children[1].children, [{ nodeType: 3, textContent: "a perfect fit" }]);
+  assert.equal(children[2].textContent, ".");
+});
+
+test("homepage heading HTML and script attempts remain plain text nodes", () => {
+  const payload = "<script>alert(1)</script><img src=x onerror=alert(1)>";
+  const children = renderHeroHeading(payload);
+
+  assert.deepEqual(children, [{ nodeType: 3, textContent: payload }]);
+});
+
+test("published homepage sections are prepared in saved display order", () => {
+  const sections = [
+    { section_key: "collection", section_type: "collection", content: { heading: "Curated designs" }, is_visible: true, sort_order: 2 },
+    { section_key: "hero", section_type: "hero", content: { heading: "A personal fit" }, is_visible: true, sort_order: 0 },
+  ];
+
+  const result = preparePublishedHomepage(publishedRelease, sections, [], []);
+
+  assert.deepEqual(result.sections.map(({ section_key }) => section_key), ["hero", "collection"]);
+  assert.equal(result.sections[0].content.heading, "A personal fit");
+});
+
+test("published homepage omits hidden sections", () => {
+  const sections = [
+    { section_key: "hero", section_type: "hero", content: {}, is_visible: true, sort_order: 0 },
+    { section_key: "process", section_type: "process", content: {}, is_visible: false, sort_order: 1 },
+  ];
+
+  const result = preparePublishedHomepage(publishedRelease, sections, [], []);
+
+  assert.deepEqual(result.sections.map(({ section_key }) => section_key), ["hero"]);
+  assert.ok(result.hiddenSectionKeys.includes("process"));
+});
+
+test("published homepage products follow the curated release order", () => {
+  const products = [
+    { id: "first", status: "published", homepage_visible: true },
+    { id: "second", status: "published", homepage_visible: true },
+    { id: "draft", status: "draft", homepage_visible: true },
+  ];
+  const releaseProducts = [
+    { product_id: "second", sort_order: 0 },
+    { product_id: "first", sort_order: 1 },
+    { product_id: "draft", sort_order: 2 },
+  ];
+
+  const result = preparePublishedHomepage(publishedRelease, [], releaseProducts, products);
+
+  assert.deepEqual(result.products.map(({ id }) => id), ["second", "first"]);
+});
+
+test("absence of a published homepage release leaves the existing homepage as fallback", () => {
+  assert.equal(preparePublishedHomepage(null, [], [], []), null);
+});
 
 const categories = [
   { id: "bridal", name: "Bridal", slug: "bridal", active: true },
@@ -15,12 +196,12 @@ const products = [
 ];
 
 const images = [
-  { id: "later", product_id: "visible", bucket_id: "catalogue-public", approved_at: "2026-01-02", sort_order: 2 },
-  { id: "first", product_id: "visible", bucket_id: "catalogue-public", approved_at: "2026-01-01", sort_order: 1 },
-  { id: "staging", product_id: "visible", bucket_id: "catalogue-staging", approved_at: null, sort_order: 0 },
-  { id: "unapproved", product_id: "inactive-category", bucket_id: "catalogue-public", approved_at: null, sort_order: 0 },
-  { id: "uncategorised-image", product_id: "uncategorised", bucket_id: "catalogue-public", approved_at: "2026-01-01", sort_order: 0 },
-  { id: "draft-image", product_id: "draft", bucket_id: "catalogue-public", approved_at: "2026-01-01", sort_order: 0 },
+  { id: "later", product_id: "visible", bucket_id: "catalogue-public", storage_path: "products/visible/later.webp", approved_at: "2026-01-02", sort_order: 2 },
+  { id: "first", product_id: "visible", bucket_id: "catalogue-public", storage_path: "products/visible/first.webp", approved_at: "2026-01-01", sort_order: 1 },
+  { id: "staging", product_id: "visible", bucket_id: "catalogue-staging", storage_path: "products/visible/staging.webp", approved_at: null, sort_order: 0 },
+  { id: "unapproved", product_id: "inactive-category", bucket_id: "catalogue-public", storage_path: "products/inactive/unapproved.webp", approved_at: null, sort_order: 0 },
+  { id: "uncategorised-image", product_id: "uncategorised", bucket_id: "catalogue-public", storage_path: "products/uncategorised/image.webp", approved_at: "2026-01-01", sort_order: 0 },
+  { id: "draft-image", product_id: "draft", bucket_id: "catalogue-public", storage_path: "products/draft/image.webp", approved_at: "2026-01-01", sort_order: 0 },
 ];
 
 test("homepage selection includes only published homepage designs with approved public images", () => {

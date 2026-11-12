@@ -1,6 +1,13 @@
 const PRODUCT_FIELDS = "id,legacy_code,title,description,category_id,status,homepage_visible,lookbook_visible,homepage_sort_order";
 const CATEGORY_FIELDS = "id,name,slug,sort_order";
 const IMAGE_FIELDS = "id,product_id,bucket_id,storage_path,alt_text,caption,sort_order,approved_at";
+const HOMEPAGE_SECTION_KEYS = [
+  "hero", "introduction", "craft-film", "collection",
+  "process", "atelier", "cta", "faq",
+];
+const SAFE_IMAGE_PATH = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+const SAFE_VIDEO_URL = /^https:\/\/videos[.]pexels[.]com\/video-files\/[0-9]+\/[A-Za-z0-9._-]+[.]mp4$/;
+const SAFE_VIDEO_SOURCE_URL = /^https:\/\/www[.]pexels[.]com\/video\/[A-Za-z0-9-]+\/$/;
 
 async function getRows(config, table, query) {
   const url = new URL(`/rest/v1/${table}`, config.url);
@@ -19,9 +26,258 @@ async function getRows(config, table, query) {
   return data;
 }
 
+function isSafeImagePath(path) {
+  return typeof path === "string" &&
+    SAFE_IMAGE_PATH.test(path) &&
+    !/(^|\/)\.\.?($|\/)/.test(path) &&
+    !path.includes("//") &&
+    !path.endsWith("/") &&
+    /\.(avif|jpe?g|png|webp)$/i.test(path);
+}
+
 function publicImageUrl(config, path) {
+  if (!isSafeImagePath(path)) return null;
+  let base;
+  try {
+    base = new URL(config.url);
+  } catch {
+    return null;
+  }
+  if (base.protocol !== "https:" || base.username || base.password) return null;
   const encoded = path.split("/").map(encodeURIComponent).join("/");
-  return `${config.url.replace(/\/+$/, "")}/storage/v1/object/public/catalogue-public/${encoded}`;
+  return new URL(`/storage/v1/object/public/catalogue-public/${encoded}`, base).href;
+}
+
+function isSafeCtaHref(href) {
+  return typeof href === "string" &&
+    (/^#[A-Za-z][A-Za-z0-9_-]*$/.test(href) ||
+      (href.startsWith("/") && !href.startsWith("//") &&
+        !/[\s\u0000-\u001f]/.test(href) && !href.includes("\\") &&
+        !/(^|\/)\.\.?($|\/)/.test(href)));
+}
+
+export function preparePublishedHomepage(release, sections, releaseProducts, products) {
+  if (release?.status !== "published") return null;
+  const sectionsByKey = new Map(
+    sections
+      .filter((section) => HOMEPAGE_SECTION_KEYS.includes(section.section_key) &&
+        section.is_visible === true && section.section_type === section.section_key)
+      .map((section) => [section.section_key, section]),
+  );
+  const visibleSections = [...sectionsByKey.values()]
+    .sort((a, b) => a.sort_order - b.sort_order);
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  const curatedProducts = [...releaseProducts]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(({ product_id }) => productsById.get(product_id))
+    .filter((product) => product?.status === "published" && product.homepage_visible);
+  return {
+    sections: visibleSections,
+    hiddenSectionKeys: HOMEPAGE_SECTION_KEYS.filter((key) => !sectionsByKey.has(key)),
+    products: curatedProducts,
+  };
+}
+
+async function loadPublishedHomepage(config) {
+  const releases = await getRows(config, "homepage_releases", {
+    select: "id,status,published_at",
+    status: "eq.published",
+    limit: "1",
+  });
+  const release = releases[0];
+  if (!release) return null;
+
+  const [sections, releaseProducts] = await Promise.all([
+    getRows(config, "homepage_section_revisions", {
+      select: "section_key,section_type,content,is_visible,sort_order",
+      release_id: `eq.${release.id}`,
+      is_visible: "eq.true",
+      order: "sort_order.asc",
+    }),
+    getRows(config, "homepage_release_products", {
+      select: "product_id,sort_order",
+      release_id: `eq.${release.id}`,
+      order: "sort_order.asc",
+    }),
+  ]);
+  const productIds = releaseProducts.map(({ product_id }) => product_id);
+  const products = productIds.length
+    ? await getRows(config, "products", {
+      select: PRODUCT_FIELDS,
+      id: `in.(${productIds.join(",")})`,
+      status: "eq.published",
+      homepage_visible: "eq.true",
+    })
+    : [];
+  return { release, sections, releaseProducts, products };
+}
+
+function setText(element, value) {
+  if (element && typeof value === "string") element.textContent = value;
+}
+
+function appendFormattedHeadingLine(nodes, line) {
+  const emphasis = /\*([^*\r\n]+)\*/g;
+  let start = 0;
+  for (const match of line.matchAll(emphasis)) {
+    if (match.index > start) nodes.push(document.createTextNode(line.slice(start, match.index)));
+    const element = document.createElement("em");
+    element.append(document.createTextNode(match[1]));
+    nodes.push(element);
+    start = match.index + match[0].length;
+  }
+  if (start < line.length || !nodes.length) {
+    nodes.push(document.createTextNode(line.slice(start)));
+  }
+}
+
+function setFormattedHeading(element, value) {
+  if (!element || typeof value !== "string") return;
+  const nodes = [];
+  value.split(/\r\n?|\n/).forEach((line, index) => {
+    if (index > 0) nodes.push(document.createElement("br"));
+    appendFormattedHeadingLine(nodes, line);
+  });
+  element.replaceChildren(...nodes);
+}
+
+function setButtonLabel(button, value) {
+  if (!button || typeof value !== "string") return;
+  const arrow = button.querySelector(".arrow");
+  button.replaceChildren(document.createTextNode(`${value} `));
+  if (arrow) button.append(arrow);
+}
+
+function setPublicImage(image, config, path, alt) {
+  const url = publicImageUrl(config, path);
+  if (!image || !url) return;
+  image.src = url;
+  image.alt = typeof alt === "string" ? alt : "";
+}
+
+export function renderPublishedHomepage(homepage, config) {
+  const main = document.querySelector("#main-content");
+  const sectionElements = new Map(
+    [...main.querySelectorAll("[data-homepage-section]")]
+      .map((section) => [section.dataset.homepageSection, section]),
+  );
+  const contentByKey = new Map(homepage.sections.map((section) => [section.section_key, section.content]));
+
+  homepage.hiddenSectionKeys.forEach((key) => {
+    const section = sectionElements.get(key);
+    if (section) section.hidden = true;
+  });
+  homepage.sections.forEach(({ section_key: key }) => {
+    const section = sectionElements.get(key);
+    if (section) section.hidden = false;
+  });
+  const orderedSections = [
+    ...homepage.sections.map(({ section_key: key }) => sectionElements.get(key)),
+    ...homepage.hiddenSectionKeys.map((key) => sectionElements.get(key)),
+  ].filter(Boolean);
+  main.append(...orderedSections);
+
+  const get = (key, selector) => sectionElements.get(key)?.querySelector(selector);
+  const hero = contentByKey.get("hero");
+  if (hero) {
+    setText(get("hero", ".eyebrow"), hero.eyebrow);
+    setFormattedHeading(get("hero", "h1"), hero.heading);
+    setText(get("hero", ".hero-copy"), hero.body);
+    setPublicImage(get("hero", ".hero-image img"), config, hero.image_path, hero.image_alt);
+    const link = get("hero", ".hero-actions a.button.light");
+    setButtonLabel(link, hero.primary_cta_label);
+    if (link && isSafeCtaHref(hero.primary_cta_href)) link.href = hero.primary_cta_href;
+  }
+
+  const introduction = contentByKey.get("introduction");
+  if (introduction) {
+    setText(get("introduction", ".kicker"), introduction.eyebrow);
+    setFormattedHeading(get("introduction", ".large-copy"), introduction.heading);
+    setText(get("introduction", ".intro-note"),
+      [introduction.body, introduction.supporting_body].filter(Boolean).join(" "));
+  }
+
+  const craftFilm = contentByKey.get("craft-film");
+  if (craftFilm) {
+    setText(get("craft-film", ".kicker"), craftFilm.eyebrow);
+    setFormattedHeading(get("craft-film", ".film-copy h2"), craftFilm.heading);
+    setText(get("craft-film", ".film-copy > p"), craftFilm.body);
+    const video = get("craft-film", "#stitch-film");
+    const posterUrl = publicImageUrl(config, craftFilm.poster_path);
+    if (video && posterUrl) video.poster = posterUrl;
+    if (Array.isArray(craftFilm.scenes) && craftFilm.scenes.length === 4 &&
+      craftFilm.scenes.every((scene) => SAFE_VIDEO_URL.test(scene.src) &&
+        SAFE_VIDEO_SOURCE_URL.test(scene.sourcePage) &&
+        typeof scene.caption === "string" && typeof scene.label === "string" &&
+        typeof scene.title === "string" && Number.isFinite(scene.seconds) && scene.seconds > 0)) {
+      window.dispatchEvent(new CustomEvent("cfp:homepage-film-scenes", {
+        detail: craftFilm.scenes,
+      }));
+    }
+  }
+
+  const collection = contentByKey.get("collection");
+  if (collection) {
+    setText(get("collection", ".section-head .kicker"), collection.eyebrow);
+    setFormattedHeading(get("collection", ".section-head h2"), collection.heading);
+    setText(get("collection", ".section-head p"), collection.body);
+  }
+
+  const process = contentByKey.get("process");
+  if (process) {
+    setText(get("process", ".process-head .kicker"), process.eyebrow);
+    setFormattedHeading(get("process", ".process-head h2"), process.heading);
+    setText(get("process", ".process-head p"), process.body);
+    get("process", ".process-grid")?.querySelectorAll(".process-step").forEach((step, index) => {
+      setText(step.querySelector("h3"), process.steps?.[index] || "");
+    });
+  }
+
+  const atelier = contentByKey.get("atelier");
+  if (atelier) {
+    setPublicImage(get("atelier", ".atelier-photo img"), config, atelier.image_path, atelier.image_alt);
+    setText(get("atelier", ".atelier-copy .kicker"), atelier.eyebrow);
+    setFormattedHeading(get("atelier", ".atelier-copy h2"), atelier.heading);
+    setText(get("atelier", ".atelier-copy > p"), atelier.body);
+    const tags = get("atelier", ".craft-tags");
+    if (tags && Array.isArray(atelier.tags)) {
+      tags.replaceChildren(...atelier.tags.filter((tag) => typeof tag === "string").map((tag) => {
+        const element = document.createElement("span");
+        element.textContent = tag;
+        return element;
+      }));
+    }
+  }
+
+  const cta = contentByKey.get("cta");
+  if (cta) {
+    setText(get("cta", ".kicker"), cta.eyebrow);
+    setFormattedHeading(get("cta", "h2"), cta.heading);
+    setText(get("cta", ".cta-inner > div:last-child p"), cta.body);
+    setButtonLabel(get("cta", "[data-book]"), cta.button_label);
+  }
+
+  const faq = contentByKey.get("faq");
+  if (faq) {
+    setText(get("faq", ".section-head .kicker"), faq.eyebrow);
+    setFormattedHeading(get("faq", ".section-head h2"), faq.heading);
+    setText(get("faq", ".section-head p"), faq.body);
+    const list = get("faq", ".faq-list");
+    const template = list?.querySelector(".faq-item");
+    if (list && template && Array.isArray(faq.items)) {
+      const items = faq.items.filter((item) =>
+        item && typeof item.question === "string" && typeof item.answer === "string")
+        .map((item) => {
+          const element = template.cloneNode(true);
+          const summary = element.querySelector("summary");
+          const marker = summary.querySelector("span");
+          summary.replaceChildren(document.createTextNode(item.question), marker);
+          setText(element.querySelector(".faq-item > div p"), item.answer);
+          return element;
+        });
+      list.replaceChildren(...items);
+    }
+  }
 }
 
 function setCardContent(card, product, category, image, index, lookbook = false, total = 1) {
@@ -85,7 +341,8 @@ export function selectVisibleCatalogue(products, categories, images, destination
     .map((category) => [category.id, category]));
   const imageMap = new Map();
   images.forEach((image) => {
-    if (image.bucket_id !== "catalogue-public" || !image.approved_at) return;
+    if (image.bucket_id !== "catalogue-public" || !image.approved_at ||
+      !isSafeImagePath(image.storage_path)) return;
     const current = imageMap.get(image.product_id);
     if (!current || image.sort_order < current.sort_order ||
       (image.sort_order === current.sort_order && image.id.localeCompare(current.id) < 0)) {
@@ -247,20 +504,41 @@ async function loadPublicCatalogue() {
   const page = document.body.dataset.publicCatalogue;
   const config = window.CFP_SUPABASE_CONFIG;
   if (!config?.url || !config?.publishableKey || !["homepage", "lookbook"].includes(page)) return;
+  let projectUrl;
   try {
-    const [categories, products] = await Promise.all([
-      getRows(config, "categories", {
-        select: CATEGORY_FIELDS,
-        active: "eq.true",
-        order: "sort_order.asc,name.asc",
-      }),
-      getRows(config, "products", {
+    projectUrl = new URL(config.url);
+  } catch {
+    return;
+  }
+  if (projectUrl.protocol !== "https:" || projectUrl.username || projectUrl.password) return;
+  try {
+    const categoriesRequest = getRows(config, "categories", {
+      select: CATEGORY_FIELDS,
+      active: "eq.true",
+      order: "sort_order.asc,name.asc",
+    });
+    const [categories, homepageRelease] = page === "homepage"
+      ? await Promise.all([categoriesRequest, loadPublishedHomepage(config)])
+      : [await categoriesRequest, null];
+    let products;
+    let homepageView = null;
+    if (homepageRelease) {
+      homepageView = preparePublishedHomepage(
+        homepageRelease.release,
+        homepageRelease.sections,
+        homepageRelease.releaseProducts,
+        homepageRelease.products,
+      );
+      if (!homepageView) throw new Error("The published homepage release could not be prepared.");
+      products = homepageView.products;
+    } else {
+      products = await getRows(config, "products", {
         select: PRODUCT_FIELDS,
         status: "eq.published",
         [page === "homepage" ? "homepage_visible" : "lookbook_visible"]: "eq.true",
         order: page === "homepage" ? "homepage_sort_order.asc" : "legacy_code.asc",
-      }),
-    ]);
+      });
+    }
     const productIds = products.map((product) => product.id);
     const images = productIds.length
       ? await getRows(config, "product_images", {
@@ -271,7 +549,10 @@ async function loadPublicCatalogue() {
         order: "sort_order.asc",
       })
       : [];
-    if (page === "homepage") renderHomepage(products, categories, images);
+    if (page === "homepage") {
+      if (homepageView) renderPublishedHomepage(homepageView, config);
+      renderHomepage(products, categories, images);
+    }
     else renderLookbook(products, categories, images);
   } catch (error) {
     console.warn("Public catalogue could not be loaded; keeping the existing page content.", error);

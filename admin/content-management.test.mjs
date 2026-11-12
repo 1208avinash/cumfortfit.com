@@ -194,30 +194,32 @@ test("Editors cannot approve or hide images", async () => {
   }, "editor"), /Only Owner and Admin/);
 });
 
-test("Owner approval copies the staged object, updates its existing row, and removes only the staging copy", async () => {
+function mockApprovalClient({
+  image,
+  approvalResponse,
+  rollbackResponse,
+  uploadError = null,
+  publicCleanupError = null,
+  stagingCleanupError = null,
+} = {}) {
   const calls = [];
-  const image = {
-    id: "image-1",
-    product_id: "product-1",
-    bucket_id: "catalogue-staging",
-    storage_path: "products/product-1/image.webp",
-    approved_at: null,
-  };
+  const updates = [];
   const client = {
     storage: {
       from(bucket) {
         return {
           async download(path) {
-            calls.push(["download", bucket, path]);
+            calls.push({ operation: "download", bucket, path });
             return { data: new Blob(["image"], { type: "image/webp" }), error: null };
           },
-          async upload(path) {
-            calls.push(["upload", bucket, path]);
-            return { error: null };
+          async upload(path, file, options) {
+            calls.push({ operation: "upload", bucket, path, options });
+            return { error: bucket === "catalogue-public" ? uploadError : null };
           },
           async remove(paths) {
-            calls.push(["remove", bucket, paths[0]]);
-            return { error: null };
+            calls.push({ operation: "remove", bucket, path: paths[0] });
+            const error = bucket === "catalogue-public" ? publicCleanupError : stagingCleanupError;
+            return { error };
           },
         };
       },
@@ -225,14 +227,30 @@ test("Owner approval copies the staged object, updates its existing row, and rem
     from(table) {
       const query = {
         update(payload) {
-          calls.push(["update", table, payload]);
+          const update = { operation: "update", table, payload, filters: [] };
+          updates.push(update);
+          calls.push(update);
           return query;
         },
-        eq() { return query; },
+        eq(column, value) {
+          updates.at(-1).filters.push(["eq", column, value]);
+          return query;
+        },
+        is(column, value) {
+          updates.at(-1).filters.push(["is", column, value]);
+          return query;
+        },
         select() { return query; },
-        async single() {
-          return {
-            data: { ...image, bucket_id: "catalogue-public", approved_at: "2026-11-11", approved_by: "owner-1" },
+        async maybeSingle() {
+          const update = updates.at(-1);
+          if (update === updates[0]) {
+            return approvalResponse || {
+              data: { ...image, ...update.payload },
+              error: null,
+            };
+          }
+          return rollbackResponse || {
+            data: { ...image, ...update.payload },
             error: null,
           };
         },
@@ -240,10 +258,138 @@ test("Owner approval copies the staged object, updates its existing row, and rem
       return query;
     },
   };
-  const result = await approveProductImage(client, image, "owner", "owner-1");
+  return { client, calls, updates };
+}
+
+const stagingImage = {
+  id: "image-1",
+  product_id: "product-1",
+  bucket_id: "catalogue-staging",
+  storage_path: "products/product-1/image.webp",
+  approved_at: null,
+  approved_by: null,
+};
+
+test("Owner approval transitions the expected row before upload and then removes the staging copy", async () => {
+  const { client, calls, updates } = mockApprovalClient({ image: stagingImage });
+  const result = await approveProductImage(client, stagingImage, "owner", "owner-1");
+
   assert.equal(result.image.bucket_id, "catalogue-public");
-  assert.deepEqual(calls.map((call) => call[0]), ["download", "upload", "update", "remove"]);
-  assert.deepEqual(calls.at(-1), ["remove", "catalogue-staging", image.storage_path]);
+  assert.deepEqual(calls.map(({ operation }) => operation), [
+    "download", "update", "upload", "remove",
+  ]);
+  assert.deepEqual(updates[0].filters, [
+    ["eq", "id", stagingImage.id],
+    ["eq", "bucket_id", "catalogue-staging"],
+    ["is", "approved_at", null],
+  ]);
+  assert.deepEqual(calls[2], {
+    operation: "upload",
+    bucket: "catalogue-public",
+    path: stagingImage.storage_path,
+    options: { contentType: "image/webp", upsert: false },
+  });
+  assert.deepEqual(calls[3], {
+    operation: "remove",
+    bucket: "catalogue-staging",
+    path: stagingImage.storage_path,
+  });
+});
+
+test("database approval failure prevents the public upload", async () => {
+  const databaseError = new Error("Database update failed");
+  const { client, calls } = mockApprovalClient({
+    image: stagingImage,
+    approvalResponse: { data: null, error: databaseError },
+  });
+
+  await assert.rejects(
+    approveProductImage(client, stagingImage, "owner", "owner-1"),
+    (error) => error === databaseError,
+  );
+  assert.deepEqual(calls.map(({ operation }) => operation), ["download", "update"]);
+});
+
+test("failed public upload is cleaned up, reverted to staging, and reports the original error", async () => {
+  const uploadError = new Error("Public upload failed");
+  const { client, calls, updates } = mockApprovalClient({
+    image: stagingImage,
+    uploadError,
+  });
+
+  await assert.rejects(
+    approveProductImage(client, stagingImage, "owner", "owner-1"),
+    (error) => error === uploadError,
+  );
+  assert.deepEqual(calls.map(({ operation }) => operation), [
+    "download", "update", "upload", "remove", "update",
+  ]);
+  assert.deepEqual(updates[1].payload, {
+    bucket_id: "catalogue-staging",
+    approved_at: null,
+    approved_by: null,
+  });
+  assert.deepEqual(updates[1].filters, [
+    ["eq", "id", stagingImage.id],
+    ["eq", "bucket_id", "catalogue-public"],
+    ["eq", "approved_at", updates[0].payload.approved_at],
+    ["eq", "approved_by", "owner-1"],
+  ]);
+});
+
+test("failed rollback reports the upload error and requires database verification", async () => {
+  const { client, calls } = mockApprovalClient({
+    image: stagingImage,
+    uploadError: new Error("Public upload failed"),
+    rollbackResponse: { data: null, error: new Error("Database rollback failed") },
+  });
+
+  await assert.rejects(
+    approveProductImage(client, stagingImage, "owner", "owner-1"),
+    (error) => {
+      assert.match(error.message, /Public upload failed/);
+      assert.match(error.message, /Database rollback failed/);
+      assert.match(error.message, /public object was removed/);
+      assert.match(error.message, /Verify the database record/);
+      return true;
+    },
+  );
+  assert.deepEqual(calls.map(({ operation }) => operation), [
+    "download", "update", "upload", "remove", "update",
+  ]);
+});
+
+test("failed public upload and failed cleanup preserve approval and report a recovery warning", async () => {
+  const { client, calls, updates } = mockApprovalClient({
+    image: stagingImage,
+    uploadError: new Error("Public upload failed"),
+    publicCleanupError: new Error("Public cleanup failed"),
+  });
+
+  const result = await approveProductImage(client, stagingImage, "admin", "admin-1");
+  assert.equal(result.image.bucket_id, "catalogue-public");
+  assert.equal(result.image.approved_by, "admin-1");
+  assert.match(result.warning, /Public image upload failed/);
+  assert.match(result.warning, /public object could not be removed/);
+  assert.match(result.warning, /record remains approved/);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(calls.map(({ operation }) => operation), [
+    "download", "update", "upload", "remove",
+  ]);
+});
+
+test("successful public approval preserves warning behavior when staging cleanup fails", async () => {
+  const { client, calls } = mockApprovalClient({
+    image: stagingImage,
+    stagingCleanupError: new Error("Staging cleanup failed"),
+  });
+
+  const result = await approveProductImage(client, stagingImage, "owner", "owner-1");
+  assert.equal(result.image.bucket_id, "catalogue-public");
+  assert.match(result.warning, /approved, but its staging copy could not be removed/);
+  assert.deepEqual(calls.map(({ operation }) => operation), [
+    "download", "update", "upload", "remove",
+  ]);
 });
 
 test("Admin hiding retains the image in staging and removes its public copy", async () => {

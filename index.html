@@ -53,7 +53,7 @@
   </header>
 
   <main id="main-content">
-    <section class="hero" id="home" aria-label="CUSTOM FIT PRIME Indian couture">
+    <section class="hero" id="home" data-homepage-section="hero" aria-label="CUSTOM FIT PRIME Indian couture">
       <div class="hero-image"><img src="assets/hero-emerald.webp" alt="Indian model in an emerald and antique-gold embroidered lehenga in a heritage-inspired Indian palace setting" fetchpriority="high" /></div>
       <div class="hero-content">
         <div class="eyebrow gold">A modern Indian couture atelier</div>
@@ -65,14 +65,14 @@
       <div class="scroll-cue">Scroll to discover</div>
     </section>
 
-    <section class="section paper-alt" id="introduction">
+    <section class="section paper-alt" id="introduction" data-homepage-section="introduction">
       <div class="section-inner intro-grid reveal">
         <div><span class="kicker">Beyond the ordinary</span><p class="large-copy">Not simply made to measure.<br />Made to <em>mean something.</em></p></div>
         <div class="intro-note">From the fall of a dupatta to the precision of a blouse neckline, the difference is in the details. CUSTOM FIT PRIME brings the individuality of Indian craft into a more personal, considered tailoring experience.</div>
       </div>
     </section>
 
-    <section class="section craft-film" id="craft-film">
+    <section class="section craft-film" id="craft-film" data-homepage-section="craft-film">
       <div class="section-inner film-grid">
         <div class="film-copy reveal">
           <span class="kicker">The craft, in motion</span>
@@ -96,7 +96,7 @@
       </div>
     </section>
 
-    <section class="section collection" id="collections">
+    <section class="section collection" id="collections" data-homepage-section="collection">
       <div class="section-inner">
         <div class="section-head reveal"><div class="title-wrap"><span class="kicker">An Indian design library</span><h2>Find the detail<br />that feels <em>like you.</em></h2></div><p>Explore silhouettes, necklines, embroidery and finishing ideas. Save the details you love and bring them to your fitting conversation.</p></div>
         <div class="collection-filters reveal" aria-label="Filter designs">
@@ -116,7 +116,7 @@
       </div>
     </section>
 
-    <section class="section process" id="process">
+    <section class="section process" id="process" data-homepage-section="process">
       <div class="section-inner">
         <div class="process-head reveal"><div><span class="kicker">The bespoke journey</span><h2>From first thought<br />to <em>final fitting.</em></h2></div><p>A considered experience gives every detail a place: your inspiration, your measurements, the craft and the finishing touches.</p></div>
         <div class="process-grid reveal"><article class="process-step"><span class="step-number">01</span><h3>Discover</h3><p>Share the garment, occasion and details you have in mind.</p></article><article class="process-step"><span class="step-number">02</span><h3>Define</h3><p>Discuss silhouette, neckline, fabric and finishing preferences.</p></article><article class="process-step"><span class="step-number">03</span><h3>Shape</h3><p>Bring those decisions into the fitting and tailoring process.</p></article><article class="process-step"><span class="step-number">04</span><h3>Refine</h3><p>Review the fit and final details before the garment is complete.</p></article></div>
@@ -124,7 +124,7 @@
     </section>
 
 
-    <section class="section paper-alt faq" id="questions">
+    <section class="section paper-alt faq" id="questions" data-homepage-section="faq">
       <div class="section-inner">
         <div class="section-head reveal"><div class="title-wrap"><span class="kicker">Before your fitting</span><h2>Good questions.<br /><em>Clear answers.</em></h2></div><p>A few practical details to help you start with confidence. Garment feasibility, design details and timing should be discussed for your specific request.</p></div>
         <div class="faq-list reveal">
@@ -136,14 +136,14 @@
       </div>
     </section>
 
-    <section class="section atelier" id="atelier">
+    <section class="section atelier" id="atelier" data-homepage-section="atelier">
       <div class="section-inner atelier-grid">
         <div class="atelier-photo reveal"><img src="assets/ivory-chikankari.webp" loading="lazy" alt="Indian model wearing an ivory chikankari outfit with fine traditional embroidery" /><div class="atelier-caption"><span>Indian craft · considered detail</span><span>Custom Fit Prime</span></div></div>
         <div class="atelier-copy reveal"><span class="kicker">An individual point of view</span><h2>Rooted in craft.<br /><em>Made personal.</em></h2><p>Indian clothing carries detail, memory and technique in every seam. Our design language begins there—with considered proportion, thoughtful finishing and a personal approach to the garment you want to wear.</p><div class="craft-tags"><span>Chikankari</span><span>Zardozi</span><span>Blouse design</span><span>Bridal wear</span><span>Custom fitting</span></div><button class="button" type="button" data-book>Start a fitting conversation <span class="arrow">↗</span></button></div>
       </div>
     </section>
 
-    <section class="cta-band"><div class="cta-inner"><div><span class="kicker" style="color:var(--gold-light)">Your idea, your fit</span><h2>Let’s create something<br /><em>uniquely yours.</em></h2></div><div><p>Choose a design direction, save your favourite details and prepare a personal fitting brief.</p><button class="button light" type="button" data-book>Begin your enquiry <span class="arrow">↗</span></button></div></div></section>
+    <section class="cta-band" data-homepage-section="cta"><div class="cta-inner"><div><span class="kicker" style="color:var(--gold-light)">Your idea, your fit</span><h2>Let’s create something<br /><em>uniquely yours.</em></h2></div><div><p>Choose a design direction, save your favourite details and prepare a personal fitting brief.</p><button class="button light" type="button" data-book>Begin your enquiry <span class="arrow">↗</span></button></div></div></section>
   </main>
 
   <footer class="footer" id="connect">
@@ -209,13 +209,20 @@
     $$('[data-close-detail]').forEach(b=>b.addEventListener('click',closeDetail));$('#detail-backdrop').addEventListener('click',e=>{if(e.target===$('#detail-backdrop'))closeDetail()});$('#detail-save').addEventListener('click',()=>{if(!activeDesign)return;toggleSaved(activeDesign);$('#detail-save').textContent=isSaved(activeDesign.id)?'Remove from saved designs':'Save this design ↗'});$('#detail-enquire').addEventListener('click',()=>{if(!activeDesign)return;const brief='I would like to discuss this design concept: '+activeDesign.title+' ('+activeDesign.id+').\n'+activeDesign.description;closeDetail();openBooking(brief)});
     const film=$('#stitch-film'),filmFrame=$('#video-frame'),filmBtn=$('#pause-film'),filmProgress=$('#film-progress-fill');
     const playMontageBtn=$('#play-montage'),replayFilmBtn=$('#replay-film'),filmPlayOverlay=$('#film-play-overlay'),filmEndCard=$('#film-end-card');
-    const filmSources=[
+    let filmSources=[
       {src:'https://videos.pexels.com/video-files/37523886/15898195_3840_2160_30fps.mp4',caption:'Hand embroidery · fine threadwork',label:'Hand embroidery',title:'The beauty of handwork.',sourcePage:'https://www.pexels.com/video/intricate-hand-embroidery-crafting-process-37523886/',seconds:2.0},
       {src:'https://videos.pexels.com/video-files/34272583/14520671_3840_2160_30fps.mp4',caption:'Dark couture · rich fabric detail',label:'Dark couture detail',title:'Depth in every detail.',sourcePage:'https://www.pexels.com/video/intricate-embroidery-process-on-black-fabric-34272583/',seconds:2.0},
       {src:'https://videos.pexels.com/video-files/7043509/7043509-uhd_3840_2160_24fps.mp4',caption:'Precision machine embroidery · pattern in motion',label:'Precision embroidery',title:'Precision by design.',sourcePage:'https://www.pexels.com/video/a-close-up-footage-of-embroidery-7043509/',seconds:2.0},
       {src:'https://videos.pexels.com/video-files/11955972/11955972-hd_1920_1080_25fps.mp4',caption:'Ivory floral stitching · the final detail',label:'Ivory floral finish',title:'Made by the details.',sourcePage:'https://www.pexels.com/video/close-up-view-of-working-sewing-machine-11955972/',seconds:2.0}
     ];
     const filmStatus=$('#film-status'),filmCaption=$('#film-caption-text'),filmTitle=$('#film-title'),filmSourceLink=$('#film-source-link'),filmSceneNumber=$('#film-scene-number'),filmSceneChips=$$('.film-scene');
+    window.addEventListener('cfp:homepage-film-scenes',event=>{
+      const scenes=event.detail;
+      if(!Array.isArray(scenes)||scenes.length!==4||scenes.some(scene=>!scene||typeof scene.src!=='string'||!/^https:\/\/videos\.pexels\.com\/video-files\/[0-9]+\/[A-Za-z0-9._-]+\.mp4$/.test(scene.src)||typeof scene.sourcePage!=='string'||!/^https:\/\/www\.pexels\.com\/video\/[A-Za-z0-9-]+\/$/.test(scene.sourcePage)||!Number.isFinite(scene.seconds)||scene.seconds<=0))return;
+      film.pause();filmSources=scenes;filmIndex=0;montageStarted=false;montageFinished=false;filmProgress.style.transform='scaleX(0)';
+      filmSceneChips.forEach((chip,index)=>{const number=document.createElement('b');number.textContent=String(index+1).padStart(2,'0');chip.replaceChildren(number,document.createTextNode(' '+scenes[index].label));});
+      syncFilmScene();
+    });
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const connection=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
     const saveData=Boolean(connection&&connection.saveData)||Boolean(connection&&/^(slow-2g|2g)$/.test(connection.effectiveType||''));
