@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f3ee">
+  <title>Studio Admin · CUSTOM FIT PRIME</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./homepage-editor.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0"></script>
+  <script src="./config.js"></script>
+  <script type="module" src="./admin.js"></script>
+</head>
+<body>
+  <main id="app" class="app-shell">
+    <section id="setup-screen" class="auth-wrap" hidden>
+      <div class="auth-card">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO CONTROL ROOM</p><h1>Connect your studio.</h1>
+        <p class="muted">The admin interface is ready. Add the Supabase project URL and publishable key in the local <code>admin/config.js</code> file to enable secure sign-in.</p>
+        <div class="notice">Configuration is intentionally not stored in this page. Never put a Supabase service-role key in browser code.</div>
+        <p class="small">Contact your studio administrator for setup assistance.</p>
+      </div>
+    </section>
+    <section id="login-screen" class="auth-wrap" hidden>
+      <form id="login-form" class="auth-card">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO CONTROL ROOM</p><h1>Welcome back.</h1>
+        <p class="muted">Sign in with an invited studio account.</p>
+        <label>Email address<input id="email" type="email" autocomplete="username" required></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Sign in securely</button>
+        <p id="login-message" class="message" role="status"></p>
+        <p class="small">Admin access is invitation-only. <a href="../index.html">Return to the public website</a></p>
+      </form>
+    </section>
+    <section id="dashboard-screen" class="workspace" hidden>
+      <aside class="sidebar">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO ADMIN</p>
+        <nav id="side-nav" aria-label="Admin sections">
+          <button class="nav-item active" data-view="overview">Overview</button>
+          <button class="nav-item" data-view="catalogue">Catalogue</button>
+          <button class="nav-item" data-view="lookbook">Lookbook</button>
+          <button class="nav-item" data-view="categories">Categories</button>
+          <button class="nav-item" data-view="media">Image approvals</button>
+          <button class="nav-item" data-view="content">Site content</button>
+          <button class="nav-item admin-only" data-view="homepage">Homepage editor</button>
+          <button class="nav-item owner-only" data-view="team">Team & access</button>
+          <button class="nav-item admin-only" data-view="activity">Audit history</button>
+        </nav>
+        <div class="sidebar-bottom"><a href="../index.html" target="_blank" rel="noopener">View public website ↗</a><button id="sign-out" class="text-button">Sign out</button></div>
+      </aside>
+      <section class="main-panel">
+        <header class="topbar"><div><p class="eyebrow">CUSTOM FIT PRIME / ADMIN</p><h1 id="view-title">Overview</h1></div><div class="user-chip"><span id="user-email"></span><b id="user-role"></b></div></header>
+        <div id="workspace-content" class="content-area">
+          <div id="overview-view">
+            <div class="welcome"><div><p class="eyebrow">YOUR STUDIO, IN FOCUS</p><h2>Good work begins with a clear view.</h2><p class="muted">Manage products, design references and the visual stories that shape the CUSTOM FIT PRIME catalogue.</p></div><div class="welcome-mark">CFP</div></div>
+            <div class="stat-grid">
+              <article class="stat-card"><span>Catalogue records</span><strong>—</strong><small>Connect the database to load records</small></article>
+              <article class="stat-card"><span>Published designs</span><strong>—</strong><small>Live catalogue visibility</small></article>
+              <article class="stat-card"><span>Pending image reviews</span><strong>—</strong><small>Staging approvals</small></article>
+              <article class="stat-card"><span>Draft content</span><strong>—</strong><small>Work awaiting publication</small></article>
+            </div>
+            <div class="section-card"><div><p class="eyebrow">IMPLEMENTATION STATUS</p><h3>Secure foundation</h3><p class="muted">Catalogue, categories and image approvals use the existing catalogue tables and role policies. Public images appear only when approved and attached to published products enabled for a public destination.</p></div><span class="status-pill">AUTHENTICATED</span></div>
+            <p id="workspace-message" class="message" role="status"></p>
+          </div>
+          <section id="catalogue-view" class="catalogue-view" hidden aria-labelledby="catalogue-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">PRODUCT MANAGEMENT</p>
+                <h2 id="catalogue-title">Catalogue</h2>
+                <p class="muted">Manage product records. Archiving keeps the record and does not permanently delete it.</p>
+              </div>
+              <button id="catalogue-add" class="catalogue-button catalogue-primary" type="button">Add product</button>
+            </div>
+            <p id="catalogue-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <section id="catalogue-form-panel" class="catalogue-card" hidden>
+              <div class="catalogue-heading form-heading">
+                <h3 id="catalogue-form-title">Add product</h3>
+                <button id="catalogue-cancel" class="catalogue-button" type="button">Cancel</button>
+              </div>
+              <form id="catalogue-form">
+                <div class="catalogue-form-grid">
+                  <label>Product code<input name="legacy_code" required autocomplete="off"></label>
+                  <label>Slug<input name="slug" required autocomplete="off"></label>
+                  <label>Title<input name="title" required autocomplete="off"></label>
+                  <label>Record type<select name="record_type" required>
+                    <option value="design_reference">Design reference</option>
+                    <option value="orderable_product">Orderable product</option>
+                  </select></label>
+                  <label>Audience<select name="audience" required>
+                    <option value="not_set">Not set</option>
+                    <option value="women">Women</option>
+                    <option value="men">Men</option>
+                    <option value="unisex">Unisex</option>
+                  </select></label>
+                  <label>Category<select id="catalogue-category" name="category_id"></select></label>
+                  <label id="catalogue-status-field">Status<select name="status" required>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                  </select></label>
+                  <label class="catalogue-description">Description<textarea name="description" rows="4"></textarea></label>
+                </div>
+                <p id="catalogue-form-message" class="catalogue-message" role="alert"></p>
+                <div class="catalogue-form-actions">
+                  <button id="catalogue-save" class="catalogue-button catalogue-primary" type="submit">Save product</button>
+                </div>
+              </form>
+            </section>
+            <div class="catalogue-toolbar">
+              <label>Search products<input id="catalogue-search" type="search" placeholder="Title, code, slug or description"></label>
+              <label>Filter by status<select id="catalogue-status-filter">
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select></label>
+              <label>Filter by category<select id="catalogue-category-filter"><option value="all">All categories</option></select></label>
+              <button id="catalogue-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <div id="catalogue-loading" class="catalogue-state" hidden>Loading catalogue…</div>
+            <div id="catalogue-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="catalogue-empty" class="catalogue-state" hidden>No products match these filters.</div>
+            <div id="catalogue-table-wrap" class="catalogue-table-wrap" hidden>
+              <table class="catalogue-table">
+                <thead><tr><th>Product</th><th>Category</th><th>Type</th><th>Audience</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead>
+                <tbody id="catalogue-rows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section id="categories-view" class="managed-view" hidden aria-labelledby="categories-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">PUBLIC CATALOGUE</p>
+                <h2 id="categories-title">Categories</h2>
+                <p class="muted">Inactive categories are hidden from public navigation. Reactivate a category to restore it.</p>
+              </div>
+              <button id="category-add" class="catalogue-button catalogue-primary" type="button">Add category</button>
+            </div>
+            <p id="category-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <section id="category-form-panel" class="catalogue-card" hidden>
+              <div class="catalogue-heading form-heading">
+                <h3 id="category-form-title">Add category</h3>
+                <button id="category-cancel" class="catalogue-button" type="button">Cancel</button>
+              </div>
+              <form id="category-form">
+                <div class="catalogue-form-grid">
+                  <label>Category name<input name="name" required maxlength="120"></label>
+                  <label>Slug<input name="slug" required maxlength="120" pattern="[a-z0-9]+(-[a-z0-9]+)*"></label>
+                  <label>Display order<input name="sort_order" type="number" min="0" step="1" required value="0"></label>
+                  <label class="category-active-field"><input name="active" type="checkbox" checked> Active on the public website</label>
+                </div>
+                <p id="category-form-message" class="catalogue-message" role="alert"></p>
+                <div class="catalogue-form-actions">
+                  <button id="category-save" class="catalogue-button catalogue-primary" type="submit">Save category</button>
+                </div>
+              </form>
+            </section>
+            <div class="managed-toolbar">
+              <label>Search categories<input id="category-search" type="search" placeholder="Name or slug"></label>
+              <label>Filter by status<select id="category-status-filter">
+                <option value="all">All categories</option><option value="active">Active</option><option value="inactive">Inactive</option>
+              </select></label>
+              <button id="category-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <div id="category-loading" class="catalogue-state" hidden>Loading categories…</div>
+            <div id="category-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="category-empty" class="catalogue-state" hidden>No categories match these filters.</div>
+            <div id="category-table-wrap" class="catalogue-table-wrap" hidden>
+              <table class="catalogue-table">
+                <thead><tr><th>Category</th><th>Slug</th><th>Order</th><th>Public status</th><th>Actions</th></tr></thead>
+                <tbody id="category-rows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section id="media-view" class="managed-view" hidden aria-labelledby="media-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">IMAGE APPROVAL WORKFLOW</p>
+                <h2 id="media-title">Image approvals</h2>
+                <p class="muted">Images belong to products; their category is inherited from the product. Editors can upload staging images. Only Owner and Admin can approve or hide public images.</p>
+              </div>
+            </div>
+            <p id="media-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <section class="catalogue-card">
+              <h3 class="media-form-title">Upload image to staging</h3>
+              <form id="media-upload-form">
+                <div class="catalogue-form-grid">
+                  <label>Product (and its category)<select id="media-product" name="product_id" required></select></label>
+                  <label>Image file<input id="media-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" required></label>
+                  <label>Alternative text<input name="alt_text" maxlength="500" placeholder="Describe the image for accessibility"></label>
+                  <label>Caption<input name="caption" maxlength="500"></label>
+                  <label>Display order<input name="sort_order" type="number" min="0" step="1" value="0" required></label>
+                </div>
+                <div id="media-upload-preview" class="media-upload-preview" hidden>
+                  <img id="media-preview-image" alt="Selected image preview">
+                </div>
+                <p id="media-upload-message" class="catalogue-message" role="alert"></p>
+                <div class="catalogue-form-actions">
+                  <button id="media-upload" class="catalogue-button catalogue-primary" type="submit">Upload to staging</button>
+                </div>
+              </form>
+            </section>
+            <div class="managed-toolbar">
+              <label>Search images<input id="media-search" type="search" placeholder="Product, category, code or alt text"></label>
+              <label>Filter by status<select id="media-status-filter">
+                <option value="all">All image states</option><option value="staging">Staging / hidden</option><option value="public">Approved public</option>
+              </select></label>
+              <button id="media-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <div id="media-loading" class="catalogue-state" hidden>Loading images…</div>
+            <div id="media-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="media-empty" class="catalogue-state" hidden>No images match these filters.</div>
+            <div id="media-grid" class="media-grid"></div>
+            <input id="media-replace-file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden>
+          </section>
+          <section id="homepage-editor-view" class="homepage-editor" hidden aria-labelledby="homepage-editor-title">
+            <div class="editor-intro">
+              <div>
+                <p class="eyebrow">PUBLIC WEBSITE / VERSIONED CONTENT</p>
+                <h2 id="homepage-editor-title">Homepage editor</h2>
+                <p class="muted">Edit the saved draft below. The live homepage stays unchanged until you publish.</p>
+              </div>
+              <div class="release-meta">
+                <span id="homepage-release-status" class="status-pill">LOADING DRAFT</span>
+                <small id="homepage-release-version"></small>
+              </div>
+            </div>
+            <p id="homepage-editor-message" class="editor-message" role="status" aria-live="polite"></p>
+            <div class="editor-columns">
+              <div>
+                <div id="homepage-section-list" class="homepage-section-list" aria-live="polite"></div>
+                <section class="editor-card product-selection">
+                  <div class="editor-card-heading">
+                    <div><p class="eyebrow">CATALOGUE RELATIONSHIP</p><h3>Homepage design cards</h3></div>
+                    <span id="homepage-product-count" class="status-pill">0 OF 8 SELECTED</span>
+                  </div>
+                  <p class="muted">Choose eight published, homepage-visible catalogue products. Card details remain in the catalogue and are not copied into homepage content.</p>
+                  <div id="homepage-product-list" class="homepage-product-list"></div>
+                </section>
+              </div>
+              <aside class="editor-actions">
+                <div class="editor-card">
+                  <p class="eyebrow">DRAFT WORKFLOW</p>
+                  <p id="homepage-draft-note" class="muted">Loading the active homepage draft…</p>
+                  <button id="homepage-save" class="primary" type="button" disabled>Save draft</button>
+                  <button id="homepage-preview" class="secondary-button" type="button" disabled>Preview draft</button>
+                  <button id="homepage-publish" class="publish-button" type="button" disabled>Publish homepage</button>
+                  <button id="homepage-reload" class="text-button reload-button" type="button" hidden>Reload latest draft</button>
+                </div>
+                <p class="small">Only Owner and Admin can use these controls. Database RPC permissions remain the security boundary.</p>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+  <div id="homepage-preview-dialog" class="preview-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="homepage-preview-title">
+    <section class="preview-window">
+      <header class="preview-header">
+        <div><p class="eyebrow">UNPUBLISHED DRAFT</p><h2 id="homepage-preview-title">Homepage preview</h2></div>
+        <button id="homepage-preview-close" class="preview-close" type="button" aria-label="Close preview">×</button>
+      </header>
+      <div id="homepage-preview-content" class="preview-content"></div>
+    </section>
+  </div>
+</body>
+</html>

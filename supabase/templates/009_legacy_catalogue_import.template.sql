@@ -1,0 +1,5 @@
+-- IMPORT TEMPLATE ONLY. Do not run until source rows and image mapping are verified.
+-- Preserve existing legacy codes exactly. No product is published by default.
+-- Map homepage catalogue records and Lookbook records individually.
+-- For each row, set record_type and audience only from verified business decisions.
+-- Keep all imported records in draft status until image, copy and visibility review.

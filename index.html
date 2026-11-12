@@ -32,9 +32,10 @@
 
     .film-play-overlay{position:absolute;z-index:4;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(180deg,rgba(18,13,9,.18),rgba(18,13,9,.45));transition:opacity .25s ease}.film-play-overlay.hidden{opacity:0;pointer-events:none}.film-play-overlay button{border:1px solid rgba(245,232,211,.72);background:rgba(18,13,9,.55);backdrop-filter:blur(12px);color:#f8edd9;padding:15px 19px;font-size:9px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer}.film-play-overlay button:hover{background:var(--gold);border-color:var(--gold);color:var(--ink)}.film-play-overlay span{color:#eee0c8;font-size:8px;text-transform:uppercase;letter-spacing:.2em}.film-end-card{position:absolute;z-index:5;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:radial-gradient(ellipse at center,#312619 0%,#110e0b 70%);opacity:0;visibility:hidden;transition:opacity .35s ease}.film-end-card.show{opacity:1;visibility:visible}.film-end-card img{width:min(44%,230px);max-height:130px;object-fit:contain}.film-end-card p{font:italic 28px var(--serif);color:var(--gold-light);margin:0}.film-end-card button{background:transparent;border:1px solid rgba(231,209,157,.55);color:var(--paper);padding:10px 14px;font-size:8px;text-transform:uppercase;letter-spacing:.16em;cursor:pointer}.film-scenes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:15px}.film-scene{border-top:1px solid rgba(41,31,22,.2);padding-top:10px;color:#817568;font-size:8px;letter-spacing:.08em;text-transform:uppercase;line-height:1.5;transition:color .2s,border-color .2s}.film-scene b{display:block;color:#a68a57;font:italic 17px var(--serif);margin-bottom:3px}.film-scene.active{border-color:var(--gold);color:var(--ink)}.film-frame video{background:#15110d}.video-frame .video-overlay{z-index:2}.video-frame:after{z-index:1}.video-frame video{z-index:0}.video-frame .video-overlay{pointer-events:none}.film-actions{pointer-events:auto}.film-end-card button:focus-visible,.film-play-overlay button:focus-visible{outline:2px solid var(--gold-light);outline-offset:3px}
     @media(max-width:760px){.film-scenes{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}.film-end-card p{font-size:23px}.film-play-overlay button{max-width:90%;font-size:8px}.film-play-overlay span{font-size:7px}}
+    .public-catalogue-empty{padding:24px 0;color:var(--muted);font:italic 22px var(--serif)}
   </style>
 </head>
-<body>
+<body data-public-catalogue="homepage">
   <a class="skip-link" href="#main-content">Skip to content</a>
   <div class="announcement"><span>Indian couture · considered craftsmanship</span><span class="dot"></span><span>Custom made, always personal</span></div>
   <header class="header">
@@ -52,7 +53,7 @@
   </header>
 
   <main id="main-content">
-    <section class="hero" id="home" aria-label="CUSTOM FIT PRIME Indian couture">
+    <section class="hero" id="home" data-homepage-section="hero" aria-label="CUSTOM FIT PRIME Indian couture">
       <div class="hero-image"><img src="assets/hero-emerald.webp" alt="Indian model in an emerald and antique-gold embroidered lehenga in a heritage-inspired Indian palace setting" fetchpriority="high" /></div>
       <div class="hero-content">
         <div class="eyebrow gold">A modern Indian couture atelier</div>
@@ -64,14 +65,14 @@
       <div class="scroll-cue">Scroll to discover</div>
     </section>
 
-    <section class="section paper-alt" id="introduction">
+    <section class="section paper-alt" id="introduction" data-homepage-section="introduction">
       <div class="section-inner intro-grid reveal">
         <div><span class="kicker">Beyond the ordinary</span><p class="large-copy">Not simply made to measure.<br />Made to <em>mean something.</em></p></div>
         <div class="intro-note">From the fall of a dupatta to the precision of a blouse neckline, the difference is in the details. CUSTOM FIT PRIME brings the individuality of Indian craft into a more personal, considered tailoring experience.</div>
       </div>
     </section>
 
-    <section class="section craft-film" id="craft-film">
+    <section class="section craft-film" id="craft-film" data-homepage-section="craft-film">
       <div class="section-inner film-grid">
         <div class="film-copy reveal">
           <span class="kicker">The craft, in motion</span>
@@ -95,7 +96,7 @@
       </div>
     </section>
 
-    <section class="section collection" id="collections">
+    <section class="section collection" id="collections" data-homepage-section="collection">
       <div class="section-inner">
         <div class="section-head reveal"><div class="title-wrap"><span class="kicker">An Indian design library</span><h2>Find the detail<br />that feels <em>like you.</em></h2></div><p>Explore silhouettes, necklines, embroidery and finishing ideas. Save the details you love and bring them to your fitting conversation.</p></div>
         <div class="collection-filters reveal" aria-label="Filter designs">
@@ -115,7 +116,7 @@
       </div>
     </section>
 
-    <section class="section process" id="process">
+    <section class="section process" id="process" data-homepage-section="process">
       <div class="section-inner">
         <div class="process-head reveal"><div><span class="kicker">The bespoke journey</span><h2>From first thought<br />to <em>final fitting.</em></h2></div><p>A considered experience gives every detail a place: your inspiration, your measurements, the craft and the finishing touches.</p></div>
         <div class="process-grid reveal"><article class="process-step"><span class="step-number">01</span><h3>Discover</h3><p>Share the garment, occasion and details you have in mind.</p></article><article class="process-step"><span class="step-number">02</span><h3>Define</h3><p>Discuss silhouette, neckline, fabric and finishing preferences.</p></article><article class="process-step"><span class="step-number">03</span><h3>Shape</h3><p>Bring those decisions into the fitting and tailoring process.</p></article><article class="process-step"><span class="step-number">04</span><h3>Refine</h3><p>Review the fit and final details before the garment is complete.</p></article></div>
@@ -123,26 +124,26 @@
     </section>
 
 
-    <section class="section paper-alt faq" id="questions">
+    <section class="section paper-alt faq" id="questions" data-homepage-section="faq">
       <div class="section-inner">
-        <div class="section-head reveal"><div class="title-wrap"><span class="kicker">Before your fitting</span><h2>Good questions.<br /><em>Clear answers.</em></h2></div><p>A few practical details to help you start with confidence. Garment feasibility, pricing and timing should be confirmed for your specific request.</p></div>
+        <div class="section-head reveal"><div class="title-wrap"><span class="kicker">Before your fitting</span><h2>Good questions.<br /><em>Clear answers.</em></h2></div><p>A few practical details to help you start with confidence. Garment feasibility, design details and timing should be discussed for your specific request.</p></div>
         <div class="faq-list reveal">
           <details class="faq-item"><summary>Can I bring a reference photo or saved design?<span aria-hidden="true">+</span></summary><div><p>Yes. Save the designs you like in the design library, then include them in your fitting brief. Add your preferred colour, neckline, sleeve shape, embroidery and occasion so the conversation starts with useful details.</p></div></details>
           <details class="faq-item"><summary>Can a design be adapted to my preferences?<span aria-hidden="true">+</span></summary><div><p>The enquiry is a starting point for discussing customisation. Final choices depend on the garment, fabric, construction, fit and level of detail, so confirm what is feasible during your consultation.</p></div></details>
-          <details class="faq-item"><summary>How much will my garment or alteration cost?<span aria-hidden="true">+</span></summary><div><p>Cost depends on the garment, fabric, embroidery, construction and alteration complexity. Share the garment type and reference details to request a quote before committing to the work.</p></div></details>
+          <details class="faq-item"><summary>How do I enquire about a specific design?<span aria-hidden="true">+</span></summary><div><p>Open its details and choose “Enquire about this design” to prepare a fitting brief with the design title and description. You can copy the brief into a message to the studio.</p></div></details>
           <details class="faq-item"><summary>How early should I enquire before an event?<span aria-hidden="true">+</span></summary><div><p>Timing varies with the garment and the amount of handwork and fittings required. Include your event date in the enquiry so the studio can confirm a realistic schedule before you proceed.</p></div></details>
         </div>
       </div>
     </section>
 
-    <section class="section atelier" id="atelier">
+    <section class="section atelier" id="atelier" data-homepage-section="atelier">
       <div class="section-inner atelier-grid">
         <div class="atelier-photo reveal"><img src="assets/ivory-chikankari.webp" loading="lazy" alt="Indian model wearing an ivory chikankari outfit with fine traditional embroidery" /><div class="atelier-caption"><span>Indian craft · considered detail</span><span>Custom Fit Prime</span></div></div>
         <div class="atelier-copy reveal"><span class="kicker">An individual point of view</span><h2>Rooted in craft.<br /><em>Made personal.</em></h2><p>Indian clothing carries detail, memory and technique in every seam. Our design language begins there—with considered proportion, thoughtful finishing and a personal approach to the garment you want to wear.</p><div class="craft-tags"><span>Chikankari</span><span>Zardozi</span><span>Blouse design</span><span>Bridal wear</span><span>Custom fitting</span></div><button class="button" type="button" data-book>Start a fitting conversation <span class="arrow">↗</span></button></div>
       </div>
     </section>
 
-    <section class="cta-band"><div class="cta-inner"><div><span class="kicker" style="color:var(--gold-light)">Your idea, your fit</span><h2>Let’s create something<br /><em>uniquely yours.</em></h2></div><div><p>Choose a design direction, save your favourite details and prepare a personal fitting brief.</p><button class="button light" type="button" data-book>Begin your enquiry <span class="arrow">↗</span></button></div></div></section>
+    <section class="cta-band" data-homepage-section="cta"><div class="cta-inner"><div><span class="kicker" style="color:var(--gold-light)">Your idea, your fit</span><h2>Let’s create something<br /><em>uniquely yours.</em></h2></div><div><p>Choose a design direction, save your favourite details and prepare a personal fitting brief.</p><button class="button light" type="button" data-book>Begin your enquiry <span class="arrow">↗</span></button></div></div></section>
   </main>
 
   <footer class="footer" id="connect">
@@ -176,7 +177,7 @@
     const $ = (s,root=document) => root.querySelector(s);
     const $$ = (s,root=document) => [...root.querySelectorAll(s)];
     const STORAGE_KEY = 'customFitPrime.savedDesigns.v1';
-    const cards = $$('.design-card');
+    let cards = $$('#design-grid .design-card');
     let saved = readSaved();
     let activeDesign = null;
     let toastTimer;
@@ -196,8 +197,11 @@
     function renderDrawer(){const c=$('#drawer-content');c.innerHTML='';if(!saved.length){const empty=document.createElement('div');empty.className='empty-mood';empty.textContent='Your design story starts here.';c.append(empty);return}saved.forEach(d=>{const item=document.createElement('div');item.className='saved-item';const img=document.createElement('img');img.src=d.image;img.alt='';const info=document.createElement('div');const title=document.createElement('strong');title.textContent=d.title;const type=document.createElement('small');type.textContent=d.type;info.append(title,type);const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Remove '+d.title);remove.addEventListener('click',()=>{saved=saved.filter(x=>x.id!==d.id);persist();showToast('Removed from saved designs.')});item.append(img,info,remove);c.append(item)})}
     async function copyText(text){try{await navigator.clipboard.writeText(text);showToast('Brief copied. Paste it into a message to request your fitting.');return true}catch{const area=document.createElement('textarea');area.value=text;area.style.position='fixed';area.style.opacity='0';document.body.append(area);area.select();const ok=document.execCommand('copy');area.remove();showToast(ok?'Brief copied. Paste it into a message to request your fitting.':'Copy was blocked. Please select and copy the brief manually.');return Boolean(ok)}}
     function designBrief(){return 'CUSTOM FIT PRIME — DESIGN BRIEF\n\nSaved inspiration:\n'+(saved.length?saved.map((d,i)=>`${i+1}. ${d.title} (${d.id}) — ${d.type}`).join('\n'):'No saved designs yet.')+'\n\nPlease discuss customisation, fit and availability.'}
-    $$('.filter-btn').forEach(btn=>btn.addEventListener('click',()=>{$$('.filter-btn').forEach(b=>{b.classList.toggle('active',b===btn);b.setAttribute('aria-pressed',String(b===btn))});const filter=btn.dataset.filter;cards.forEach(card=>{const match=filter==='all'||card.dataset.category===filter;card.hidden=!match})}));
-    cards.forEach(card=>{$('.pin-btn',card).addEventListener('click',e=>{e.stopPropagation();toggleSaved(cardData(card))});$('.view-design',card).addEventListener('click',()=>openDetail(card));$('.design-image img',card).addEventListener('click',()=>openDetail(card))});
+    function bindDesignCards(){cards=$$('#design-grid .design-card');cards.forEach(card=>{if(card.dataset.interactionsBound)return;card.dataset.interactionsBound='true';$('.pin-btn',card).addEventListener('click',e=>{e.stopPropagation();toggleSaved(cardData(card))});$('.view-design',card).addEventListener('click',()=>openDetail(card));$('.design-image img',card).addEventListener('click',()=>openDetail(card))})}
+    function filterDesignCards(filter){cards.forEach(card=>{card.hidden=filter!=='all'&&card.dataset.category!==filter})}
+    $('.collection-filters').addEventListener('click',event=>{const btn=event.target.closest('.filter-btn');if(!btn)return;$$('.filter-btn').forEach(b=>{b.classList.toggle('active',b===btn);b.setAttribute('aria-pressed',String(b===btn))});filterDesignCards(btn.dataset.filter)});
+    bindDesignCards();
+    window.addEventListener('cfp:catalogue-updated',()=>{bindDesignCards();updateSavedUI();filterDesignCards($('.filter-btn.active')?.dataset.filter||'all')});
     updateSavedUI();
     $$('#open-moodboard,#open-moodboard-bottom').forEach(b=>b.addEventListener('click',openDrawer));$('#close-drawer').addEventListener('click',closeDrawer);$('#drawer-backdrop').addEventListener('click',closeDrawer);$('#copy-board').addEventListener('click',()=>copyText(designBrief()));$('#book-from-board').addEventListener('click',()=>{closeDrawer();openBooking(saved.length?'I saved these designs for discussion:\n'+saved.map(x=>'• '+x.title+' ('+x.id+')').join('\n'):'I would like to discuss a custom garment.')});
     $$('[data-book]').forEach(b=>b.addEventListener('click',()=>openBooking()));$$('[data-close-book]').forEach(b=>b.addEventListener('click',closeBooking));$('#cancel-book').addEventListener('click',closeBooking);$('#booking-backdrop').addEventListener('click',e=>{if(e.target===$('#booking-backdrop'))closeBooking()});
@@ -205,13 +209,20 @@
     $$('[data-close-detail]').forEach(b=>b.addEventListener('click',closeDetail));$('#detail-backdrop').addEventListener('click',e=>{if(e.target===$('#detail-backdrop'))closeDetail()});$('#detail-save').addEventListener('click',()=>{if(!activeDesign)return;toggleSaved(activeDesign);$('#detail-save').textContent=isSaved(activeDesign.id)?'Remove from saved designs':'Save this design ↗'});$('#detail-enquire').addEventListener('click',()=>{if(!activeDesign)return;const brief='I would like to discuss this design concept: '+activeDesign.title+' ('+activeDesign.id+').\n'+activeDesign.description;closeDetail();openBooking(brief)});
     const film=$('#stitch-film'),filmFrame=$('#video-frame'),filmBtn=$('#pause-film'),filmProgress=$('#film-progress-fill');
     const playMontageBtn=$('#play-montage'),replayFilmBtn=$('#replay-film'),filmPlayOverlay=$('#film-play-overlay'),filmEndCard=$('#film-end-card');
-    const filmSources=[
+    let filmSources=[
       {src:'https://videos.pexels.com/video-files/37523886/15898195_3840_2160_30fps.mp4',caption:'Hand embroidery · fine threadwork',label:'Hand embroidery',title:'The beauty of handwork.',sourcePage:'https://www.pexels.com/video/intricate-hand-embroidery-crafting-process-37523886/',seconds:2.0},
       {src:'https://videos.pexels.com/video-files/34272583/14520671_3840_2160_30fps.mp4',caption:'Dark couture · rich fabric detail',label:'Dark couture detail',title:'Depth in every detail.',sourcePage:'https://www.pexels.com/video/intricate-embroidery-process-on-black-fabric-34272583/',seconds:2.0},
       {src:'https://videos.pexels.com/video-files/7043509/7043509-uhd_3840_2160_24fps.mp4',caption:'Precision machine embroidery · pattern in motion',label:'Precision embroidery',title:'Precision by design.',sourcePage:'https://www.pexels.com/video/a-close-up-footage-of-embroidery-7043509/',seconds:2.0},
       {src:'https://videos.pexels.com/video-files/11955972/11955972-hd_1920_1080_25fps.mp4',caption:'Ivory floral stitching · the final detail',label:'Ivory floral finish',title:'Made by the details.',sourcePage:'https://www.pexels.com/video/close-up-view-of-working-sewing-machine-11955972/',seconds:2.0}
     ];
     const filmStatus=$('#film-status'),filmCaption=$('#film-caption-text'),filmTitle=$('#film-title'),filmSourceLink=$('#film-source-link'),filmSceneNumber=$('#film-scene-number'),filmSceneChips=$$('.film-scene');
+    window.addEventListener('cfp:homepage-film-scenes',event=>{
+      const scenes=event.detail;
+      if(!Array.isArray(scenes)||scenes.length!==4||scenes.some(scene=>!scene||typeof scene.src!=='string'||!/^https:\/\/videos\.pexels\.com\/video-files\/[0-9]+\/[A-Za-z0-9._-]+\.mp4$/.test(scene.src)||typeof scene.sourcePage!=='string'||!/^https:\/\/www\.pexels\.com\/video\/[A-Za-z0-9-]+\/$/.test(scene.sourcePage)||!Number.isFinite(scene.seconds)||scene.seconds<=0))return;
+      film.pause();filmSources=scenes;filmIndex=0;montageStarted=false;montageFinished=false;filmProgress.style.transform='scaleX(0)';
+      filmSceneChips.forEach((chip,index)=>{const number=document.createElement('b');number.textContent=String(index+1).padStart(2,'0');chip.replaceChildren(number,document.createTextNode(' '+scenes[index].label));});
+      syncFilmScene();
+    });
     const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const connection=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
     const saveData=Boolean(connection&&connection.saveData)||Boolean(connection&&/^(slow-2g|2g)$/.test(connection.effectiveType||''));
@@ -249,5 +260,7 @@
     const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(!reduce&&'IntersectionObserver'in window){const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('in-view');observer.unobserve(entry.target)}}),{threshold:.08});$$('.reveal').forEach(el=>observer.observe(el))}else $$('.reveal').forEach(el=>el.classList.add('in-view'));
     if(reduce){film.pause();film.removeAttribute('autoplay')}
   </script>
+  <script src="admin/config.js"></script>
+  <script type="module" src="public-catalogue.mjs"></script>
 </body>
 </html>
