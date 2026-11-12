@@ -114,7 +114,7 @@
             <div class="catalogue-toolbar">
               <label>Search products<input id="catalogue-search" type="search" placeholder="Title, code, slug or description"></label>
               <label>Filter by status<select id="catalogue-status-filter">
-                <option value="all">All statuses</option>
+                <option value="all" selected>All statuses</option>
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
                 <option value="archived">Archived</option>
@@ -122,15 +122,41 @@
               <label>Filter by category<select id="catalogue-category-filter"><option value="all">All categories</option></select></label>
               <button id="catalogue-reload" class="catalogue-button" type="button">Reload</button>
             </div>
+            <p id="catalogue-results-summary" class="catalogue-results-summary" aria-live="polite"></p>
             <div id="catalogue-loading" class="catalogue-state" hidden>Loading catalogue…</div>
             <div id="catalogue-error" class="catalogue-state catalogue-error" hidden></div>
             <div id="catalogue-empty" class="catalogue-state" hidden>No products match these filters.</div>
             <div id="catalogue-table-wrap" class="catalogue-table-wrap" hidden>
               <table class="catalogue-table">
-                <thead><tr><th>Product</th><th>Category</th><th>Type</th><th>Audience</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Type</th><th>Audience</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead>
                 <tbody id="catalogue-rows"></tbody>
               </table>
             </div>
+          </section>
+          <section id="lookbook-view" class="catalogue-view" hidden aria-labelledby="lookbook-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">LOOKBOOK COLLECTION</p>
+                <h2 id="lookbook-title">Lookbook</h2>
+                <p class="muted">Choose published designs to show in the public Lookbook. Draft and archived products remain private.</p>
+              </div>
+              <button id="lookbook-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <p id="lookbook-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <div class="catalogue-toolbar">
+              <label>Search products<input id="lookbook-search" type="search" placeholder="Name, code or category"></label>
+              <label>Filter by status<select id="lookbook-status-filter">
+                <option value="all" selected>All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select></label>
+            </div>
+            <p id="lookbook-results-summary" class="catalogue-results-summary" aria-live="polite"></p>
+            <div id="lookbook-loading" class="catalogue-state" hidden>Loading products…</div>
+            <div id="lookbook-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="lookbook-empty" class="catalogue-state" hidden>No products match these filters.</div>
+            <div id="lookbook-products" class="lookbook-admin-grid"></div>
           </section>
           <section id="categories-view" class="managed-view" hidden aria-labelledby="categories-title">
             <div class="catalogue-heading">
@@ -222,8 +248,8 @@
             <div class="editor-intro">
               <div>
                 <p class="eyebrow">PUBLIC WEBSITE / VERSIONED CONTENT</p>
-                <h2 id="homepage-editor-title">Homepage editor</h2>
-                <p class="muted">Edit the saved draft below. The live homepage stays unchanged until you publish.</p>
+                <h2 id="homepage-editor-title">Studio website editor</h2>
+                <p class="muted">Select a section in the website preview to edit it. Your saved draft stays private until you publish.</p>
               </div>
               <div class="release-meta">
                 <span id="homepage-release-status" class="status-pill">LOADING DRAFT</span>
@@ -231,28 +257,74 @@
               </div>
             </div>
             <p id="homepage-editor-message" class="editor-message" role="status" aria-live="polite"></p>
-            <div class="editor-columns">
-              <div>
-                <div id="homepage-section-list" class="homepage-section-list" aria-live="polite"></div>
-                <section class="editor-card product-selection">
+            <div class="studio-toolbar">
+              <p id="homepage-draft-note" class="muted">Loading your private homepage draft…</p>
+              <div class="studio-workflow">
+                <button id="homepage-save" class="catalogue-button catalogue-primary" type="button" disabled>Save draft</button>
+                <button id="homepage-preview" class="catalogue-button" type="button" disabled>Preview draft</button>
+                <button id="homepage-publish" class="publish-button" type="button" disabled>Publish website</button>
+                <button id="homepage-reload" class="catalogue-button" type="button" hidden>Reload draft</button>
+              </div>
+            </div>
+            <div id="homepage-section-list" class="studio-section-nav" aria-label="Homepage sections"></div>
+            <div class="visual-editor-grid">
+              <div class="visual-preview-wrap">
+                <div class="visual-preview-heading"><strong>Website preview</strong><span>Draft changes are visible here only</span></div>
+                <iframe id="homepage-live-preview" title="Complete CUSTOM FIT PRIME homepage draft preview" src="../index.html?cfpStudioPreview=1" loading="lazy" referrerpolicy="same-origin"></iframe>
+              </div>
+              <aside class="section-editor-panel">
+                <div class="section-editor-heading">
+                  <div><p class="eyebrow">SELECTED SECTION</p><h3 id="homepage-selected-section">Choose a section</h3></div>
+                  <button id="homepage-section-visibility" class="catalogue-button" type="button" disabled>Hide section</button>
+                </div>
+                <p id="homepage-section-summary" class="muted">Select a section in the preview or from the section list to make changes.</p>
+                <button id="homepage-section-edit" class="catalogue-button catalogue-primary" type="button" disabled>Edit section</button>
+                <section id="homepage-section-editor" class="section-fields editor-card" hidden>
+                  <div id="homepage-section-fields"></div>
+                  <div class="catalogue-form-actions">
+                    <button id="homepage-section-cancel" class="catalogue-button" type="button">Cancel</button>
+                    <button id="homepage-section-save" class="catalogue-button catalogue-primary" type="button">Apply changes</button>
+                  </div>
+                </section>
+                <section id="homepage-image-manager" class="editor-card homepage-image-manager" hidden aria-labelledby="homepage-image-manager-title">
                   <div class="editor-card-heading">
-                    <div><p class="eyebrow">CATALOGUE RELATIONSHIP</p><h3>Homepage design cards</h3></div>
+                    <div><p class="eyebrow">SECTION IMAGE</p><h3 id="homepage-image-manager-title">Choose an image</h3></div>
+                  </div>
+                  <img id="homepage-image-current" class="homepage-image-current" alt="" hidden>
+                  <p id="homepage-image-message" class="catalogue-message" role="status" aria-live="polite"></p>
+                  <div class="homepage-image-actions">
+                    <button id="homepage-image-choose" class="catalogue-button" type="button">Choose Existing Image</button>
+                    <button id="homepage-image-upload" class="catalogue-button" type="button">Upload New Image</button>
+                  </div>
+                  <div id="homepage-image-gallery" class="homepage-image-gallery" hidden>
+                    <div class="homepage-image-tabs" role="tablist" aria-label="Image collections">
+                      <button class="catalogue-button active" type="button" data-image-gallery-tab="website" role="tab" aria-selected="true">Website Images</button>
+                      <button class="catalogue-button" type="button" data-image-gallery-tab="lookbook" role="tab" aria-selected="false">Lookbook Images</button>
+                      <button class="catalogue-button" type="button" data-image-gallery-tab="products" role="tab" aria-selected="false">Product Images</button>
+                    </div>
+                    <div id="homepage-image-gallery-grid" class="homepage-image-gallery-grid"></div>
+                  </div>
+                  <div id="homepage-image-upload-panel" class="homepage-image-upload-panel" hidden>
+                    <label class="homepage-image-file-label">Choose a JPEG, PNG or WebP image
+                      <input id="homepage-image-file" type="file" accept="image/jpeg,image/png,image/webp">
+                    </label>
+                    <img id="homepage-image-upload-preview" class="homepage-image-current" alt="Selected image preview" hidden>
+                    <div class="catalogue-form-actions">
+                      <button id="homepage-image-upload-cancel" class="catalogue-button" type="button">Cancel</button>
+                      <button id="homepage-image-upload-confirm" class="catalogue-button catalogue-primary" type="button" disabled>Use this image</button>
+                    </div>
+                  </div>
+                  <p class="small">Images are added to private staging. Approve them in Image approvals before publishing the homepage. Your original website image files are not changed.</p>
+                </section>
+                <section id="homepage-product-selection" class="editor-card product-selection" hidden>
+                  <div class="editor-card-heading">
+                    <div><p class="eyebrow">FEATURED DESIGNS</p><h3>Homepage collection</h3></div>
                     <span id="homepage-product-count" class="status-pill">0 OF 8 SELECTED</span>
                   </div>
-                  <p class="muted">Choose eight published, homepage-visible catalogue products. Card details remain in the catalogue and are not copied into homepage content.</p>
+                  <p class="muted">Choose eight published designs that are enabled for the homepage.</p>
                   <div id="homepage-product-list" class="homepage-product-list"></div>
                 </section>
-              </div>
-              <aside class="editor-actions">
-                <div class="editor-card">
-                  <p class="eyebrow">DRAFT WORKFLOW</p>
-                  <p id="homepage-draft-note" class="muted">Loading the active homepage draft…</p>
-                  <button id="homepage-save" class="primary" type="button" disabled>Save draft</button>
-                  <button id="homepage-preview" class="secondary-button" type="button" disabled>Preview draft</button>
-                  <button id="homepage-publish" class="publish-button" type="button" disabled>Publish homepage</button>
-                  <button id="homepage-reload" class="text-button reload-button" type="button" hidden>Reload latest draft</button>
-                </div>
-                <p class="small">Only Owner and Admin can use these controls. Database RPC permissions remain the security boundary.</p>
+                <p class="small">Your changes remain a private draft until you publish.</p>
               </aside>
             </div>
           </section>
@@ -260,14 +332,5 @@
       </section>
     </section>
   </main>
-  <div id="homepage-preview-dialog" class="preview-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="homepage-preview-title">
-    <section class="preview-window">
-      <header class="preview-header">
-        <div><p class="eyebrow">UNPUBLISHED DRAFT</p><h2 id="homepage-preview-title">Homepage preview</h2></div>
-        <button id="homepage-preview-close" class="preview-close" type="button" aria-label="Close preview">×</button>
-      </header>
-      <div id="homepage-preview-content" class="preview-content"></div>
-    </section>
-  </div>
 </body>
 </html>

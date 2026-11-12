@@ -12,6 +12,7 @@ import {
   validateSupabaseConfig,
 } from "./generate-vercel-config.mjs";
 import { buildStaticPackage } from "./build-vercel-package.mjs";
+import { HOMEPAGE_IMAGE_LIBRARY } from "../admin/homepage-image-library.mjs";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const generatorPath = fileURLToPath(new URL("./generate-vercel-config.mjs", import.meta.url));
@@ -154,6 +155,7 @@ test("build packages only the static runtime and generated config", () => {
       "index.html",
       "lookbook.html",
       "public-catalogue.mjs",
+      "studio-preview-messaging.mjs",
       "admin/index.html",
       "admin/config.js",
       "admin/admin.js",
@@ -161,14 +163,20 @@ test("build packages only the static runtime and generated config", () => {
       "admin/catalogue.mjs",
       "admin/content-management.mjs",
       "admin/homepage-editor.mjs",
+      "admin/homepage-image-library.mjs",
       "admin/homepage-editor.css",
       "assets/custom-fit-prime-logo.png",
       "assets/hero-emerald.webp",
       "assets/custom-fit-prime-ad-draft.mp4",
       "assets/lookbook/blouse-look-22.webp",
+      "contact-sheet.jpg",
+      "catalogue-contact-sheet.jpg",
     ];
     for (const relativePath of requiredFiles) {
       assert.ok(existsSync(join(outputDirectory, relativePath)), `missing packaged file ${relativePath}`);
+    }
+    for (const image of HOMEPAGE_IMAGE_LIBRARY) {
+      assert.ok(existsSync(join(outputDirectory, image.path)), `missing packaged image ${image.path}`);
     }
     for (const forbiddenPath of [
       "supabase",

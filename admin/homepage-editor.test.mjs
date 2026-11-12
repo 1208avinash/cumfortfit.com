@@ -125,6 +125,28 @@ test("saving uses the migration RPC name, parameter names, and current lock vers
   });
 });
 
+test("saving a draft preserves a selected staging image path", async () => {
+  const { client, calls } = mockClient({
+    rpcResults: { save_homepage_draft: { data: 5, error: null } },
+  });
+  const sections = HOMEPAGE_SECTIONS.map((definition, sort_order) => ({
+    section_key: definition.key,
+    section_type: definition.key,
+    content: emptySectionContent(definition.key),
+    is_visible: true,
+    sort_order,
+  }));
+  sections.find((section) => section.section_key === "hero").content.image_path =
+    "products/product-1/selected-image.webp";
+
+  await saveHomepageDraft(client, { id: "draft-id", lock_version: 4 }, sections, []);
+
+  assert.equal(
+    calls[0].args.p_sections.find((section) => section.section_key === "hero").content.image_path,
+    "products/product-1/selected-image.webp",
+  );
+});
+
 test("incomplete text, images, and product selection are allowed in a structurally valid draft", () => {
   const sections = HOMEPAGE_SECTIONS.map((definition, sort_order) => ({
     section_key: definition.key,

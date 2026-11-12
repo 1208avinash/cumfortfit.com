@@ -183,6 +183,35 @@ test("Editors cannot change product public destinations", async () => {
   );
 });
 
+test("Lookbook selection updates only published products through the visibility helper", async () => {
+  const calls = [];
+  const client = {
+    from(table) {
+      const query = {
+        update(payload) { calls.push({ operation: "update", table, payload }); return query; },
+        eq(column, value) { calls.push({ column, value }); return query; },
+        select() { return query; },
+        single() { return Promise.resolve({ data: { id: "p1", status: "published", lookbook_visible: true }, error: null }); },
+      };
+      return query;
+    },
+  };
+  const updated = await setProductPublicVisibility(
+    client, { id: "p1", status: "published" }, "lookbook_visible", true, "admin",
+  );
+  assert.equal(updated.lookbook_visible, true);
+  assert.deepEqual(calls[0], {
+    operation: "update",
+    table: "products",
+    payload: { lookbook_visible: true },
+  });
+  await assert.rejects(
+    setProductPublicVisibility(client, { id: "draft", status: "draft" }, "lookbook_visible", true, "admin"),
+    /Publish the product/,
+  );
+  assert.equal(calls.length, 2);
+});
+
 test("Editors cannot approve or hide images", async () => {
   await assert.rejects(approveProductImage({}, {
     bucket_id: "catalogue-staging",

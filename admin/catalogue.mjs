@@ -15,6 +15,8 @@ export const PRODUCT_FIELDS = [
   "created_at",
   "updated_at",
 ].join(",");
+const PRODUCT_IMAGE_FIELDS = "id,product_id,bucket_id,storage_path,alt_text,sort_order,approved_at";
+const PAGE_SIZE = 500;
 
 const STAFF_ROLES = new Set(["owner", "admin", "editor"]);
 const MANAGER_ROLES = new Set(["owner", "admin"]);
@@ -25,14 +27,34 @@ function throwOnError(result) {
 }
 
 export async function loadCatalogueData(client) {
-  const [products, categories] = await Promise.all([
-    client.from("products").select(PRODUCT_FIELDS).order("updated_at", { ascending: false }),
+  const [productRows, categories] = await Promise.all([
+    loadAllPages(() => client.from("products").select(PRODUCT_FIELDS)
+      .order("updated_at", { ascending: false }).order("id", { ascending: true })),
     client.from("categories").select("id,name,slug,sort_order,active").order("sort_order", { ascending: true }),
   ]);
+  const productIds = productRows.map((product) => product.id);
+  const imageGroups = await Promise.all(
+    Array.from({ length: Math.ceil(productIds.length / 100) }, (_, index) =>
+      loadAllPages(() => client.from("product_images").select(PRODUCT_IMAGE_FIELDS)
+        .in("product_id", productIds.slice(index * 100, (index + 1) * 100))
+        .order("sort_order", { ascending: true }).order("id", { ascending: true })),
+    ),
+  );
   return {
-    products: throwOnError(products),
+    products: productRows,
     categories: throwOnError(categories),
+    images: imageGroups.flat(),
   };
+}
+
+async function loadAllPages(buildQuery) {
+  const rows = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const result = await buildQuery().range(offset, offset + PAGE_SIZE - 1);
+    const page = throwOnError(result);
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+  }
 }
 
 export function filterCatalogueProducts(products, search, status, categoryId) {

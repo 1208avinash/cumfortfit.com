@@ -11,13 +11,17 @@ const RUNTIME_FILES = [
   "index.html",
   "lookbook.html",
   "public-catalogue.mjs",
+  "studio-preview-messaging.mjs",
   "admin/index.html",
   "admin/admin.js",
   "admin/admin.css",
   "admin/catalogue.mjs",
   "admin/content-management.mjs",
   "admin/homepage-editor.mjs",
+  "admin/homepage-image-library.mjs",
   "admin/homepage-editor.css",
+  "contact-sheet.jpg",
+  "catalogue-contact-sheet.jpg",
 ];
 
 export function buildStaticPackage({

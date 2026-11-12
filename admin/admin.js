@@ -31,7 +31,13 @@ import {
   setProductPublicVisibility,
   updateProductImage,
   uploadStagingImage,
+  validateImageFile,
 } from "./content-management.mjs";
+import { HOMEPAGE_IMAGE_LIBRARY } from "./homepage-image-library.mjs";
+import {
+  isTrustedPreviewMessage,
+  previewMessageTargetOrigin,
+} from "../studio-preview-messaging.mjs";
 
 (() => {
   "use strict";
@@ -58,10 +64,18 @@ import {
   let homepageDirty = false;
   let homepageConflict = false;
   let homepageBusy = false;
+  let selectedHomepageSection = "hero";
+  let editingHomepageSection = false;
+  let homepagePreviewRevision = 0;
+  let homepageImageField = null;
+  let homepageImagePreviewUrls = new Map();
+  let homepageImageUploadPreviewUrl = null;
+  let homepageImageBusy = false;
   let catalogueData = null;
   let catalogueProduct = null;
   let catalogueBusy = false;
   let catalogueSaving = false;
+  let lookbookSaving = false;
   let categoryData = null;
   let categoryEditing = null;
   let categoryBusy = false;
@@ -178,6 +192,28 @@ import {
 
     filtered.forEach((product) => {
       const row = makeElement("tr", product.status === "archived" ? "catalogue-row archived" : "catalogue-row");
+      const imageCell = makeElement("td", "catalogue-image-cell");
+      const image = catalogueData.images.filter((item) => item.product_id === product.id)
+        .sort((a, b) => {
+          const aPublic = a.bucket_id === "catalogue-public" && Boolean(a.approved_at);
+          const bPublic = b.bucket_id === "catalogue-public" && Boolean(b.approved_at);
+          return Number(bPublic) - Number(aPublic) || a.sort_order - b.sort_order;
+        })[0];
+      if (image) {
+        const preview = makeElement("img", "catalogue-product-image");
+        preview.alt = image.alt_text || `${product.title} image`;
+        preview.loading = "lazy";
+        imageCell.append(preview);
+        imagePreviewUrl(supabase, image).then((url) => {
+          if (preview.isConnected) preview.src = url;
+        }).catch(() => {
+          preview.classList.add("image-unavailable");
+          preview.alt = "Image preview unavailable";
+          preview.title = "Image preview unavailable";
+        });
+      } else {
+        imageCell.append(makeElement("span", "catalogue-image-empty", "No image"));
+      }
       const details = makeElement("td", "catalogue-product-cell");
       details.append(makeElement("strong", "", product.title));
       details.append(makeElement("small", "", `${product.legacy_code} · /${product.slug}`));
@@ -200,9 +236,16 @@ import {
         archive.dataset.productId = product.id;
         actions.append(archive);
       }
-      row.append(details, category, type, audience, status, updated, actions);
+      row.append(imageCell, details, category, type, audience, status, updated, actions);
       body.append(row);
     });
+    const counts = catalogueData.products.reduce((summary, product) => {
+      summary[product.status] = (summary[product.status] || 0) + 1;
+      return summary;
+    }, {});
+    $("#catalogue-results-summary").textContent =
+      `${catalogueData.products.length} existing product${catalogueData.products.length === 1 ? "" : "s"} · ` +
+      `${counts.published || 0} published · ${counts.draft || 0} drafts · ${counts.archived || 0} archived`;
   }
 
   async function loadCatalogue(force = false) {
@@ -231,6 +274,136 @@ import {
     } finally {
       catalogueBusy = false;
       $("#catalogue-reload").disabled = false;
+    }
+  }
+
+  async function renderLookbookRows() {
+    if (!catalogueData) return;
+    const grid = $("#lookbook-products");
+    grid.replaceChildren();
+    const query = $("#lookbook-search").value.trim().toLocaleLowerCase();
+    const statusFilter = $("#lookbook-status-filter").value;
+    const filtered = catalogueData.products.filter((product) => {
+      const categoryName = catalogueCategoryName(product.category_id);
+      const matchesSearch = !query || [
+        product.title,
+        product.legacy_code,
+        product.slug,
+        product.description,
+        categoryName,
+      ].some((value) => value?.toLocaleLowerCase().includes(query));
+      return matchesSearch && (statusFilter === "all" || product.status === statusFilter);
+    });
+    $("#lookbook-loading").hidden = true;
+    $("#lookbook-error").hidden = true;
+    $("#lookbook-empty").hidden = filtered.length !== 0;
+    $("#lookbook-empty").textContent = catalogueData.products.length
+      ? "No products match these filters."
+      : "No product records are available in this catalogue.";
+    $("#lookbook-results-summary").textContent =
+      `${filtered.length} of ${catalogueData.products.length} product${catalogueData.products.length === 1 ? "" : "s"}`;
+
+    for (const product of filtered) {
+      const card = makeElement("article", "lookbook-product-card");
+      const media = makeElement("div", "lookbook-product-media");
+      const image = catalogueData.images.filter((item) => item.product_id === product.id)
+        .sort((a, b) => {
+          const aPublic = a.bucket_id === "catalogue-public" && Boolean(a.approved_at);
+          const bPublic = b.bucket_id === "catalogue-public" && Boolean(b.approved_at);
+          return Number(bPublic) - Number(aPublic) || a.sort_order - b.sort_order;
+        })[0];
+      if (image) {
+        const preview = makeElement("img");
+        preview.alt = image.alt_text || `${product.title} image`;
+        preview.loading = "lazy";
+        media.append(preview);
+        imagePreviewUrl(supabase, image).then((url) => {
+          if (preview.isConnected) preview.src = url;
+        }).catch(() => {
+          preview.classList.add("image-unavailable");
+          preview.alt = "Image preview unavailable";
+        });
+      } else {
+        media.append(makeElement("span", "", "No image"));
+      }
+
+      const body = makeElement("div", "lookbook-product-body");
+      const heading = makeElement("div", "lookbook-product-heading");
+      heading.append(makeElement("h3", "", product.title));
+      heading.append(makeElement("span", `catalogue-status status-${product.status}`, product.status));
+      body.append(heading);
+      body.append(makeElement("p", "lookbook-product-details",
+        `${catalogueCategoryName(product.category_id)} · ${product.record_type === "orderable_product" ? "Orderable product" : "Design reference"}`));
+      body.append(makeElement("p", "lookbook-product-code", product.legacy_code));
+
+      const selection = makeElement("label", "lookbook-product-selection");
+      const checkbox = makeElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = Boolean(product.lookbook_visible);
+      checkbox.disabled = product.status !== "published" || !["owner", "admin"].includes(activeRole);
+      checkbox.dataset.lookbookProductId = product.id;
+      selection.append(checkbox, document.createTextNode("Show in public Lookbook"));
+      body.append(selection);
+      if (product.status !== "published") {
+        body.append(makeElement("small", "lookbook-product-note", "Publish this product before adding it to the public Lookbook."));
+      } else if (checkbox.disabled) {
+        body.append(makeElement("small", "lookbook-product-note", "Only Owner and Admin roles can change public visibility."));
+      }
+      card.append(media, body);
+      grid.append(card);
+    }
+  }
+
+  async function loadLookbookView(force = false) {
+    if (catalogueBusy) return;
+    if (catalogueData && !force) {
+      await renderLookbookRows();
+      return;
+    }
+    catalogueBusy = true;
+    $("#lookbook-loading").hidden = false;
+    $("#lookbook-error").hidden = true;
+    $("#lookbook-empty").hidden = true;
+    $("#lookbook-products").replaceChildren();
+    $("#lookbook-reload").disabled = true;
+    setCatalogueMessage("", "error", "#lookbook-message");
+    try {
+      catalogueData = await loadCatalogueData(supabase);
+      renderCatalogueCategories();
+      await renderLookbookRows();
+    } catch (error) {
+      catalogueData = null;
+      $("#lookbook-loading").hidden = true;
+      $("#lookbook-error").hidden = false;
+      $("#lookbook-error").textContent = formatCatalogueError(error, "load");
+      setCatalogueMessage(formatCatalogueError(error, "load"), "error", "#lookbook-message");
+    } finally {
+      catalogueBusy = false;
+      $("#lookbook-reload").disabled = false;
+    }
+  }
+
+  async function changeLookbookVisibility(checkbox) {
+    if (lookbookSaving || !catalogueData) return;
+    const product = catalogueData.products.find((item) => item.id === checkbox.dataset.lookbookProductId);
+    if (!product) {
+      setCatalogueMessage("That product is no longer available. Reload the Lookbook list.", "error", "#lookbook-message");
+      return;
+    }
+    lookbookSaving = true;
+    checkbox.disabled = true;
+    try {
+      const updated = await setProductPublicVisibility(
+        supabase, product, "lookbook_visible", checkbox.checked, activeRole,
+      );
+      Object.assign(product, updated);
+      setCatalogueMessage("Lookbook selection saved.", "success", "#lookbook-message");
+    } catch (error) {
+      checkbox.checked = Boolean(product.lookbook_visible);
+      setCatalogueMessage(error.message || "Could not update Lookbook selection.", "error", "#lookbook-message");
+    } finally {
+      checkbox.disabled = product.status !== "published" || !["owner", "admin"].includes(activeRole);
+      lookbookSaving = false;
     }
   }
 
@@ -791,41 +964,298 @@ import {
     const container = $("#homepage-section-list");
     container.replaceChildren();
     const rowsByKey = new Map((homepageData?.sections || []).map((row) => [row.section_key, row]));
-    HOMEPAGE_SECTIONS.forEach((definition, index) => {
-      const row = rowsByKey.get(definition.key);
-      const content = { ...emptySectionContent(definition.key), ...(row?.content || {}) };
-      const card = makeElement("article", "editor-card homepage-section-card");
-      card.dataset.sectionKey = definition.key;
-      card.dataset.sortOrder = String(Number.isInteger(row?.sort_order) ? row.sort_order : index);
-      const heading = makeElement("div", "editor-card-heading section-card-heading");
-      const titleWrap = makeElement("div");
-      titleWrap.append(makeElement("p", "eyebrow", `SECTION ${String(index + 1).padStart(2, "0")}`));
-      titleWrap.append(makeElement("h3", "", definition.label));
-      heading.append(titleWrap);
-      const visibilityLabel = makeElement("label", "visibility-control");
-      const visibility = makeElement("input");
-      visibility.type = "checkbox";
-      visibility.checked = row ? row.is_visible : true;
-      visibility.dataset.sectionVisible = "true";
-      visibilityLabel.append(visibility, makeElement("span", "", "Visible"));
-      heading.append(visibilityLabel);
-      card.append(heading);
+    const orderedDefinitions = HOMEPAGE_SECTIONS.map((definition, index) => ({
+      definition,
+      index,
+      row: rowsByKey.get(definition.key),
+    })).sort((a, b) => (a.row?.sort_order ?? a.index) - (b.row?.sort_order ?? b.index));
+    orderedDefinitions.forEach(({ definition, index, row }) => {
+      if (!row) return;
+      const button = makeElement(
+        "button",
+        `studio-section-button${definition.key === selectedHomepageSection ? " selected" : ""}`,
+        definition.label,
+      );
+      button.type = "button";
+      button.dataset.homepageSectionSelect = definition.key;
+      button.append(makeElement("span", "", row.is_visible ? "Visible" : "Hidden"));
+      button.setAttribute("aria-pressed", String(definition.key === selectedHomepageSection));
+      button.dataset.sectionOrder = String(Number.isInteger(row.sort_order) ? row.sort_order : index);
+      container.append(button);
+    });
+    renderSelectedHomepageSection();
+  }
 
-      const fields = makeElement("div", "editor-fields");
-      definition.fields.forEach((key) => fieldControl(fields, key, content[key], {
+  function selectedHomepageRow() {
+    return homepageData?.sections.find((section) => section.section_key === selectedHomepageSection) || null;
+  }
+
+  function homepageImageManagerEnabled() {
+    return Boolean(homepageData && homepageData.release.status === "draft" &&
+      isHomepageManager(activeRole) && homepageImageField);
+  }
+
+  function safePreviewSource(value) {
+    if (typeof value !== "string" || !value) return null;
+    try {
+      const url = new URL(value, window.location.href);
+      if (!["http:", "https:", "file:"].includes(url.protocol) || url.username || url.password) return null;
+      const allowedOrigins = new Set([window.location.origin, new URL(config.url).origin]);
+      if (!allowedOrigins.has(url.origin)) return null;
+      return url.href;
+    } catch {
+      return null;
+    }
+  }
+
+  function showHomepageImageManager(sectionKey, field, currentSrc, altText = "") {
+    const supported = {
+      hero: ["image_path"],
+      atelier: ["image_path"],
+      "craft-film": ["poster_path"],
+    };
+    if (!supported[sectionKey]?.includes(field)) return;
+    selectedHomepageSection = sectionKey;
+    editingHomepageSection = false;
+    homepageImageField = { sectionKey, field };
+    const definition = HOMEPAGE_SECTIONS.find((item) => item.key === sectionKey);
+    $("#homepage-image-manager-title").textContent =
+      `${definition.label}${field === "poster_path" ? " video poster" : " image"}`;
+    const image = $("#homepage-image-current");
+    const safeSource = safePreviewSource(currentSrc);
+    image.hidden = !safeSource;
+    if (safeSource) {
+      image.src = safeSource;
+      image.alt = altText || `${definition.label} image`;
+    } else {
+      image.removeAttribute("src");
+    }
+    $("#homepage-image-gallery").hidden = true;
+    $("#homepage-image-upload-panel").hidden = true;
+    $("#homepage-image-message").textContent = "";
+    $("#homepage-image-manager").hidden = false;
+    renderHomepageSections();
+  }
+
+  function renderHomepageImageGallery(group = "website") {
+    const grid = $("#homepage-image-gallery-grid");
+    grid.replaceChildren();
+    HOMEPAGE_IMAGE_LIBRARY.filter((asset) => asset.group === group).forEach((asset) => {
+      const card = makeElement("button", "homepage-image-choice");
+      card.type = "button";
+      card.dataset.homepageImagePath = asset.path;
+      const image = makeElement("img");
+      image.src = new URL(`../${asset.path}`, window.location.href).href;
+      image.alt = asset.description;
+      image.loading = "lazy";
+      card.append(image);
+      card.append(makeElement("strong", "", asset.path.split("/").pop()));
+      card.append(makeElement("small", "", asset.description));
+      grid.append(card);
+    });
+  }
+
+  async function loadHomepageDraftImagePreviewUrls() {
+    homepageImagePreviewUrls = new Map();
+    const paths = [...new Set((homepageData?.sections || []).flatMap((section) => {
+      const content = section.content || {};
+      return [
+        section.section_key === "hero" ? content.image_path : "",
+        section.section_key === "atelier" ? content.image_path : "",
+        section.section_key === "craft-film" ? content.poster_path : "",
+      ].filter((path) => typeof path === "string" && path.startsWith("products/"));
+    }))];
+    if (!paths.length) return;
+    const { data, error } = await supabase.from("product_images")
+      .select("id,bucket_id,storage_path,alt_text,approved_at")
+      .in("storage_path", paths);
+    if (error) throw error;
+    for (const image of data || []) {
+      if (image.bucket_id !== "catalogue-staging") continue;
+      homepageImagePreviewUrls.set(image.storage_path, await imagePreviewUrl(supabase, image));
+    }
+  }
+
+  function homepageImageProductId() {
+    const products = homepageData?.products || [];
+    return products.find((product) => product.status === "published")?.id || products[0]?.id || "";
+  }
+
+  async function addHomepageImage(file, target = homepageImageField) {
+    if (homepageImageBusy || !homepageData || homepageData.release.status !== "draft" ||
+      !isHomepageManager(activeRole) || !target) return;
+    const productId = homepageImageProductId();
+    if (!productId) {
+      $("#homepage-image-message").textContent = "Add a product in Catalogue before choosing a homepage image.";
+      return;
+    }
+    try {
+      const extension = validateImageFile(file);
+      if (!["jpg", "png", "webp"].includes(extension)) {
+        throw new Error("Choose a JPEG, PNG or WebP image.");
+      }
+    } catch (error) {
+      $("#homepage-image-message").textContent = error.message;
+      return;
+    }
+    homepageImageBusy = true;
+    $("#homepage-image-message").textContent = "Adding image to private staging…";
+    $("#homepage-image-manager").querySelectorAll("button,input").forEach((control) => { control.disabled = true; });
+    try {
+      const row = homepageData.sections.find((section) => section.section_key === target.sectionKey);
+      if (!row) throw new Error("Select a homepage section before adding an image.");
+      const uploaded = await uploadStagingImage(supabase, {
+        product_id: productId,
+        file,
+        alt_text: row.content.image_alt || "",
+        caption: null,
+        sort_order: 0,
+      }, activeRole);
+      const previewUrl = await imagePreviewUrl(supabase, uploaded);
+      homepageImagePreviewUrls.set(uploaded.storage_path, previewUrl);
+      const updated = {
+        ...row,
+        content: { ...row.content, [target.field]: uploaded.storage_path },
+      };
+      homepageData.sections = homepageData.sections.map((section) =>
+        section.section_key === updated.section_key ? updated : section);
+      if (homepageImageField?.sectionKey === target.sectionKey &&
+        homepageImageField?.field === target.field) {
+        $("#homepage-image-current").src = previewUrl;
+        $("#homepage-image-current").alt = row.content.image_alt ||
+          `${HOMEPAGE_SECTIONS.find((item) => item.key === row.section_key).label} image`;
+        $("#homepage-image-current").hidden = false;
+        $("#homepage-image-gallery").hidden = true;
+        $("#homepage-image-upload-panel").hidden = true;
+      }
+      $("#homepage-image-file").value = "";
+      if (homepageImageUploadPreviewUrl) URL.revokeObjectURL(homepageImageUploadPreviewUrl);
+      homepageImageUploadPreviewUrl = null;
+      $("#homepage-image-upload-preview").hidden = true;
+      markHomepageDirty();
+      renderHomepageSections();
+      sendHomepagePreview();
+      const status = "Image added to your private draft preview. Save draft to keep it; approve it in Image approvals before publishing.";
+      if (homepageImageField?.sectionKey === target.sectionKey) $("#homepage-image-message").textContent = status;
+      else setEditorMessage(status, "success");
+    } catch (error) {
+      $("#homepage-image-message").textContent =
+        error.message || "Could not add this image. Check your connection and try again.";
+    } finally {
+      homepageImageBusy = false;
+      $("#homepage-image-manager").querySelectorAll("button,input").forEach((control) => {
+        control.disabled = !homepageImageManagerEnabled();
+      });
+      $("#homepage-image-upload-confirm").disabled =
+        !homepageImageManagerEnabled() || !$("#homepage-image-file").files[0];
+    }
+  }
+
+  async function useHomepageGalleryAsset(path) {
+    const asset = HOMEPAGE_IMAGE_LIBRARY.find((item) => item.path === path);
+    if (!asset) {
+      $("#homepage-image-message").textContent = "That image is not in the approved website image library.";
+      return;
+    }
+    const target = homepageImageField && { ...homepageImageField };
+    if (!target) return;
+    try {
+      const source = new URL(`../${asset.path}`, window.location.href);
+      if (source.origin !== window.location.origin) {
+        throw new Error("The selected image is not available from this website.");
+      }
+      const response = await fetch(source.href, { credentials: "same-origin", redirect: "error" });
+      if (!response.ok) throw new Error(`Could not load the selected image (${response.status}).`);
+      const blob = await response.blob();
+      const typeByExtension = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
+      const extension = asset.path.split(".").pop().toLowerCase();
+      const file = new File([blob], asset.path.split("/").pop(), {
+        type: typeByExtension[extension] || blob.type,
+      });
+      await addHomepageImage(file, target);
+    } catch (error) {
+      $("#homepage-image-message").textContent = error.message || "Could not load the selected image.";
+    }
+  }
+
+  function renderSelectedHomepageSection() {
+    const row = selectedHomepageRow();
+    const definition = HOMEPAGE_SECTIONS.find((item) => item.key === selectedHomepageSection);
+    $("#homepage-product-selection").hidden = selectedHomepageSection !== "collection";
+    $("#homepage-section-edit").hidden = editingHomepageSection;
+    $("#homepage-section-editor").hidden = !editingHomepageSection;
+    $("#homepage-section-edit").disabled = !row || homepageBusy || homepageData?.release.status !== "draft";
+    $("#homepage-section-visibility").disabled = !row || homepageBusy || homepageData?.release.status !== "draft";
+    if (!row || !definition) {
+      $("#homepage-selected-section").textContent = "Choose a section";
+      $("#homepage-section-summary").textContent = "Select a section in the preview or from the section list to make changes.";
+      $("#homepage-section-fields").replaceChildren();
+      return;
+    }
+
+    $("#homepage-selected-section").textContent = definition.label;
+    $("#homepage-section-summary").textContent = row.is_visible
+      ? "This section is currently shown on the homepage."
+      : "This section is hidden from the homepage. Its content is kept in your draft.";
+    $("#homepage-section-visibility").textContent = row.is_visible ? "Hide section" : "Show section";
+    $("#homepage-section-visibility").setAttribute("aria-pressed", String(row.is_visible));
+    $("#homepage-section-fields").replaceChildren();
+    if (!editingHomepageSection) return;
+
+    const content = { ...emptySectionContent(definition.key), ...(row.content || {}) };
+    const fields = makeElement("div", "editor-fields");
+    definition.fields.filter((key) => !["image_path", "poster_path"].includes(key))
+      .forEach((key) => fieldControl(fields, key, content[key], {
         multiline: ["body", "supporting_body", "heading"].includes(key),
         rows: ["body", "heading"].includes(key) ? 4 : 3,
         contentField: true,
-        help: ["image_path", "poster_path"].includes(key)
-          ? "Use the storage path of an approved catalogue-public image. Local assets are not promoted automatically."
-          : key === "heading"
-            ? "Use a new line for a line break and *text* for emphasis."
+        help: key === "heading"
+          ? "Use a new line for a line break and *text* for emphasis."
           : null,
       }));
-      renderStructuredFields(fields, definition, content);
-      card.append(fields);
-      container.append(card);
+    renderStructuredFields(fields, definition, content);
+    $("#homepage-section-fields").append(fields);
+  }
+
+  function collectSelectedSection() {
+    const row = selectedHomepageRow();
+    const definition = HOMEPAGE_SECTIONS.find((item) => item.key === selectedHomepageSection);
+    if (!row || !definition) throw new Error("Select a homepage section before editing.");
+    const content = { ...row.content };
+    const fields = $("#homepage-section-fields");
+    fields.querySelectorAll("[data-content-field]").forEach((input) => {
+      content[input.dataset.contentField] = input.value;
     });
+    const list = fields.querySelector("[data-list-field]");
+    if (list) content[list.dataset.listField] = list.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (definition.structured === "scenes" || definition.structured === "items") {
+      content[definition.structured] = Array.from({ length: 4 }, (_, objectIndex) => {
+        const item = {};
+        fields.querySelectorAll(`[data-object-index="${objectIndex}"]`).forEach((input) => {
+          const value = input.value;
+          item[input.dataset.objectField] = input.dataset.objectField === "seconds" && value !== ""
+            ? Number(value)
+            : value;
+        });
+        return item;
+      });
+    }
+    return { ...row, content };
+  }
+
+  function sendHomepagePreview(selectedSectionKey = selectedHomepageSection, refreshCatalogue = false) {
+    const frame = $("#homepage-live-preview");
+    if (!frame?.contentWindow || !homepageData) return;
+    frame.contentWindow.postMessage({
+      type: "cfp:studio-homepage-draft",
+      sections: homepageData.sections,
+      productIds: collectProductIds(),
+      products: homepageData.products || [],
+      imagePreviewUrls: Object.fromEntries(homepageImagePreviewUrls),
+      selectedSectionKey,
+      refreshCatalogue,
+      previewRevision: ++homepagePreviewRevision,
+    }, previewMessageTargetOrigin(window.location));
   }
 
   function renderHomepageProducts() {
@@ -838,7 +1268,7 @@ import {
       return orderA - orderB || (a.homepage_sort_order || 0) - (b.homepage_sort_order || 0);
     });
     if (!products.length) {
-      container.append(makeElement("p", "muted", "No catalogue products are available. The approved catalogue migration and published homepage-visible products are required."));
+      container.append(makeElement("p", "muted", "No designs are available to add yet. Add or publish designs in Catalogue first."));
     }
     products.forEach((product) => {
       const eligible = product.status === "published" && product.homepage_visible === true;
@@ -851,11 +1281,19 @@ import {
       checkbox.dataset.eligible = String(eligible);
       const details = makeElement("span", "product-option-copy");
       details.append(makeElement("strong", "", product.title || product.legacy_code));
-      details.append(makeElement("small", "", `${product.legacy_code} · ${eligible ? "Published and homepage-visible" : "Not currently eligible"}`));
+      const state = eligible
+        ? "Ready for the homepage"
+        : product.status === "archived"
+          ? "Archived"
+          : product.status === "draft"
+            ? "Draft"
+            : "Hidden from the homepage";
+      details.append(makeElement("small", "", `${product.legacy_code} · ${state}`));
       label.append(checkbox, details);
       container.append(label);
     });
     updateProductCount();
+    sendHomepagePreview();
   }
 
   function updateProductCount() {
@@ -874,8 +1312,14 @@ import {
     homepageBusy = busy;
     const editingLocked = busy || !homepageData || homepageData.release.status !== "draft";
     $("#homepage-editor-view").querySelectorAll(
-      ".homepage-section-card input, .homepage-section-card textarea, .homepage-product-list input",
+      ".section-fields input, .section-fields textarea, .section-fields select, .homepage-product-list input, " +
+      ".studio-section-button, #homepage-section-save, #homepage-section-cancel, #homepage-image-manager button, " +
+      "#homepage-image-manager input",
     ).forEach((control) => { control.disabled = editingLocked; });
+    $("#homepage-image-upload-confirm").disabled =
+      editingLocked || !$("#homepage-image-file").files[0];
+    $("#homepage-section-edit").disabled = editingLocked || !selectedHomepageRow();
+    $("#homepage-section-visibility").disabled = editingLocked || !selectedHomepageRow();
     $("#homepage-save").disabled = busy || homepageConflict || !homepageData || !homepageDirty || homepageData.release.status !== "draft";
     $("#homepage-preview").disabled = busy || !homepageData;
     $("#homepage-publish").disabled = busy || homepageConflict || !homepageData || homepageData.release.status !== "draft";
@@ -903,40 +1347,12 @@ import {
   }
 
   function validateAndCollectSections() {
-    const sections = [];
-    for (const [index, definition] of HOMEPAGE_SECTIONS.entries()) {
-      const card = [...$("#homepage-section-list").children]
-        .find((item) => item.dataset.sectionKey === definition.key);
-      if (!card) throw new Error(`${definition.label}: section editor is unavailable.`);
-      const content = {};
-      card.querySelectorAll("[data-content-field]").forEach((input) => {
-        content[input.dataset.contentField] = input.value;
-      });
-      const list = card.querySelector("[data-list-field]");
-      if (list) {
-        content[list.dataset.listField] = list.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
-      }
-      if (definition.structured === "scenes" || definition.structured === "items") {
-        const objects = Array.from({ length: 4 }, (_, objectIndex) => {
-          const item = {};
-          card.querySelectorAll(`[data-object-index="${objectIndex}"]`).forEach((input) => {
-            const value = input.value;
-            item[input.dataset.objectField] = input.dataset.objectField === "seconds" && value !== ""
-              ? Number(value)
-              : value;
-          });
-          return item;
-        });
-        content[definition.structured] = objects;
-      }
-      sections.push({
-        section_key: definition.key,
-        section_type: definition.key,
-        content,
-        is_visible: card.querySelector("[data-section-visible]").checked,
-        sort_order: Number(card.dataset.sortOrder) || index,
-      });
+    if (editingHomepageSection) {
+      const current = collectSelectedSection();
+      homepageData.sections = homepageData.sections.map((row) =>
+        row.section_key === current.section_key ? current : row);
     }
+    const sections = [...(homepageData?.sections || [])].sort((a, b) => a.sort_order - b.sort_order);
     const errors = validateHomepageDraftStructure(sections);
     if (errors.length) throw new Error(errors.join("\n"));
     return sections;
@@ -965,6 +1381,9 @@ import {
       return;
     }
     if (!force && homepageData?.release.status === "draft") {
+      if (!homepageData.sections.some((section) => section.section_key === selectedHomepageSection)) {
+        selectedHomepageSection = HOMEPAGE_SECTIONS[0].key;
+      }
       renderHomepageSections();
       renderHomepageProducts();
       $("#overview-view").hidden = true;
@@ -976,6 +1395,10 @@ import {
     homepageData = null;
     homepageDirty = false;
     homepageConflict = false;
+    editingHomepageSection = false;
+    homepageImageField = null;
+    homepageImagePreviewUrls = new Map();
+    $("#homepage-image-manager").hidden = true;
     $("#overview-view").hidden = true;
     $("#homepage-editor-view").hidden = false;
     $("#homepage-section-list").replaceChildren(makeElement("p", "muted", "Loading the active homepage draft…"));
@@ -987,8 +1410,12 @@ import {
     setHomepageBusy(true);
     try {
       homepageData = await loadHomepageEditorData(supabase);
+      await loadHomepageDraftImagePreviewUrls();
       homepageDirty = false;
       homepageConflict = false;
+      if (!homepageData.sections.some((section) => section.section_key === selectedHomepageSection)) {
+        selectedHomepageSection = HOMEPAGE_SECTIONS[0].key;
+      }
       renderHomepageSections();
       renderHomepageProducts();
       setVersionStatus();
@@ -1053,135 +1480,12 @@ import {
     }
   }
 
-  function isSafeImagePath(path) {
-    return typeof path === "string" &&
-      /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(path) &&
-      !/(^|\/)\.\.?($|\/)/.test(path) &&
-      !path.includes("//") &&
-      !path.endsWith("/");
-  }
-
-  function isSafeCtaHref(href) {
-    return /^#[A-Za-z][A-Za-z0-9_-]*$/.test(href) ||
-      (href.startsWith("/") && !href.startsWith("//") &&
-        !/[\s\u0000-\u001f]/.test(href) && !href.includes("\\") &&
-        !/(^|\/)\.\.?($|\/)/.test(href));
-  }
-
-  function addPreviewImage(parent, path, alt) {
-    if (!isSafeImagePath(path)) return;
-    const image = makeElement("img", "draft-preview-image");
-    image.src = supabase.storage.from("catalogue-public").getPublicUrl(path).data.publicUrl;
-    image.alt = alt || "";
-    image.loading = "lazy";
-    parent.append(image);
-  }
-
-  function renderDraftPreview(sections, productIds) {
-    const container = $("#homepage-preview-content");
-    container.replaceChildren();
-    const publishErrors = collectPublishErrors(sections, productIds);
-    if (publishErrors.length) {
-      const notice = makeElement("aside", "draft-preview-incomplete");
-      notice.setAttribute("role", "status");
-      notice.append(makeElement("strong", "", "Incomplete draft preview"));
-      notice.append(makeElement("p", "", "Missing or invalid content is listed below. This preview does not change the public homepage."));
-      const list = makeElement("ul");
-      publishErrors.forEach((error) => list.append(makeElement("li", "", error)));
-      notice.append(list);
-      container.append(notice);
-    }
-    const productMap = new Map((homepageData.products || []).map((product) => [product.id, product]));
-    sections.filter((section) => section.is_visible)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .forEach((section) => {
-      const definition = HOMEPAGE_SECTIONS.find((item) => item.key === section.section_key);
-      const article = makeElement("article", `draft-preview-section preview-${section.section_key}`);
-      const content = section.content;
-      article.append(makeElement("p", "preview-eyebrow", content.eyebrow || definition.label));
-      if (content.image_path) addPreviewImage(article, content.image_path, content.image_alt);
-      if (content.poster_path) addPreviewImage(article, content.poster_path, content.heading);
-      if (/^https:\/\/videos\.pexels\.com\/video-files\/[0-9]+\/[A-Za-z0-9._-]+\.mp4$/.test(content.video_path || "")) {
-        const video = makeElement("video", "draft-preview-video");
-        video.controls = true;
-        video.preload = "none";
-        video.src = content.video_path;
-        article.append(video);
-      }
-      article.append(makeElement("h3", "", content.heading || definition.label));
-      if (content.body) article.append(makeElement("p", "", content.body));
-      if (content.supporting_body) article.append(makeElement("p", "", content.supporting_body));
-      if (content.primary_cta_label && isSafeCtaHref(content.primary_cta_href || "")) {
-        const link = makeElement("a", "preview-link", content.primary_cta_label);
-        link.href = content.primary_cta_href;
-        article.append(link);
-      }
-      if (content.button_label) article.append(makeElement("span", "preview-link", content.button_label));
-      if (Array.isArray(content.steps)) {
-        const list = makeElement("ol");
-        content.steps.forEach((step) => list.append(makeElement("li", "", step)));
-        article.append(list);
-      }
-      if (Array.isArray(content.tags)) {
-        const list = makeElement("p", "muted", content.tags.join(" · "));
-        article.append(list);
-      }
-      if (Array.isArray(content.items)) {
-        const list = makeElement("div", "preview-faq-list");
-        content.items.forEach((item) => {
-          const entry = makeElement("div");
-          entry.append(makeElement("strong", "", item.question || ""));
-          entry.append(makeElement("p", "", item.answer || ""));
-          list.append(entry);
-        });
-        article.append(list);
-      }
-      if (Array.isArray(content.scenes)) {
-        content.scenes.forEach((scene) => {
-          const item = makeElement("p", "muted", `${scene.label || ""}: ${scene.caption || ""}`);
-          article.append(item);
-        });
-      }
-      const missingContent = publishErrors.filter((error) =>
-        error.startsWith(`${section.section_key}:`) ||
-        error.startsWith(`${definition.label}:`) ||
-        (section.section_key === "craft-film" && error.startsWith("Craft Film scene ")));
-      if (missingContent.length) {
-        article.append(makeElement("p", "draft-preview-missing", "This section is incomplete."));
-      }
-      container.append(article);
-    });
-
-    if (sections.some((section) => section.section_key === "collection" && section.is_visible)) {
-      const collection = makeElement("section", "draft-preview-section");
-      collection.append(makeElement("p", "preview-eyebrow", "CATALOGUE RELATIONSHIP"));
-      collection.append(makeElement("h3", "", "Selected homepage designs"));
-      const cards = makeElement("div", "preview-product-grid");
-      productIds.forEach((id) => {
-        const product = productMap.get(id);
-        const card = makeElement("article", "preview-product-card");
-        if (!product) {
-          card.append(makeElement("p", "", "Selected product unavailable"));
-        } else {
-          card.append(makeElement("small", "", product.legacy_code));
-          card.append(makeElement("strong", "", product.title));
-          if (product.homepage_card_summary) card.append(makeElement("p", "", product.homepage_card_summary));
-        }
-        cards.append(card);
-      });
-      collection.append(cards);
-      container.append(collection);
-    }
-  }
-
   function previewDraft() {
     if (!isHomepageManager(activeRole) || !homepageData) return;
     try {
-      const sections = validateAndCollectSections();
-      const productIds = collectProductIds();
-      renderDraftPreview(sections, productIds);
-      $("#homepage-preview-dialog").hidden = false;
-      $("#homepage-preview-close").focus();
+      validateAndCollectSections();
+      sendHomepagePreview(selectedHomepageSection, true);
+      setEditorMessage("Refreshing your website preview…", "success");
     } catch (error) {
       setEditorMessage(error.message);
     }
@@ -1266,15 +1570,21 @@ import {
         setEditorMessage("Homepage editing is available only to active Owner and Admin accounts.");
         return;
       }
+      if (button.dataset.view !== "homepage") {
+        homepageImageField = null;
+        $("#homepage-image-manager").hidden = true;
+      }
       document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
       $("#homepage-editor-view").hidden = button.dataset.view !== "homepage";
       $("#catalogue-view").hidden = button.dataset.view !== "catalogue";
+      $("#lookbook-view").hidden = button.dataset.view !== "lookbook";
       $("#categories-view").hidden = button.dataset.view !== "categories";
       $("#media-view").hidden = button.dataset.view !== "media";
-      $("#overview-view").hidden = ["homepage", "catalogue", "categories", "media"].includes(button.dataset.view);
+      $("#overview-view").hidden = ["homepage", "catalogue", "lookbook", "categories", "media"].includes(button.dataset.view);
       $("#view-title").textContent = labels[button.dataset.view] || "Overview";
       if (button.dataset.view === "homepage") showHomepageView();
       else if (button.dataset.view === "catalogue") void loadCatalogue();
+      else if (button.dataset.view === "lookbook") void loadLookbookView();
       else if (button.dataset.view === "categories") void loadCategoryView();
       else if (button.dataset.view === "media") void loadMediaView();
       else if (button.dataset.view === "overview") message("", "#workspace-message");
@@ -1283,6 +1593,12 @@ import {
     $("#catalogue-add").addEventListener("click", () => openCatalogueForm());
     $("#catalogue-cancel").addEventListener("click", closeCatalogueForm);
     $("#catalogue-reload").addEventListener("click", () => { void loadCatalogue(true); });
+    $("#lookbook-reload").addEventListener("click", () => { void loadLookbookView(true); });
+    $("#lookbook-search").addEventListener("input", () => { void renderLookbookRows(); });
+    $("#lookbook-status-filter").addEventListener("change", () => { void renderLookbookRows(); });
+    $("#lookbook-products").addEventListener("change", (event) => {
+      if (event.target.matches("[data-lookbook-product-id]")) void changeLookbookVisibility(event.target);
+    });
     $("#catalogue-form").addEventListener("submit", (event) => { void submitCatalogueForm(event); });
     $("#catalogue-search").addEventListener("input", renderCatalogueRows);
     $("#catalogue-status-filter").addEventListener("change", renderCatalogueRows);
@@ -1396,7 +1712,6 @@ import {
       if (event.target.matches("[data-content-field], [data-list-field], [data-object-field]")) markHomepageDirty();
     });
     $("#homepage-editor-view").addEventListener("change", (event) => {
-      if (event.target.matches("[data-section-visible]")) markHomepageDirty();
       if (event.target.matches("[data-product-id]")) {
         if (event.target.checked && event.target.dataset.eligible !== "true") {
           event.target.checked = false;
@@ -1405,7 +1720,149 @@ import {
         }
         updateProductCount();
         markHomepageDirty();
+        sendHomepagePreview();
       }
+    });
+    $("#homepage-section-list").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-homepage-section-select]");
+      if (!button || !homepageData) return;
+      if (editingHomepageSection && !window.confirm("Discard the section edits that have not been applied?")) return;
+      selectedHomepageSection = button.dataset.homepageSectionSelect;
+      editingHomepageSection = false;
+      homepageImageField = null;
+      $("#homepage-image-manager").hidden = true;
+      renderHomepageSections();
+      sendHomepagePreview();
+    });
+    $("#homepage-live-preview").addEventListener("load", () => sendHomepagePreview());
+    window.addEventListener("message", (event) => {
+      if (!isTrustedPreviewMessage(
+        event,
+        $("#homepage-live-preview").contentWindow,
+        window.location,
+      )) return;
+      if (["cfp:studio-homepage-preview-ready", "cfp:studio-homepage-preview-error"].includes(event.data?.type) &&
+        event.data.previewRevision === homepagePreviewRevision) {
+        if (event.data.type === "cfp:studio-homepage-preview-ready") {
+          setEditorMessage("Your current draft is shown in the website preview. The published homepage is unchanged.", "success");
+        } else {
+          setEditorMessage("The draft preview could not refresh. Check your connection and try Preview draft again.");
+        }
+        return;
+      }
+      if (event.data?.type !== "cfp:homepage-section-selected" ||
+        !HOMEPAGE_SECTIONS.some((section) => section.key === event.data.sectionKey)) return;
+      if (editingHomepageSection && !window.confirm("Discard the section edits that have not been applied?")) return;
+      selectedHomepageSection = event.data.sectionKey;
+      editingHomepageSection = false;
+      renderHomepageSections();
+      if (typeof event.data.imageField === "string" &&
+        typeof event.data.imageCurrentSrc === "string") {
+        showHomepageImageManager(
+          event.data.sectionKey,
+          event.data.imageField,
+          event.data.imageCurrentSrc,
+          event.data.imageAlt,
+        );
+      } else {
+        homepageImageField = null;
+        $("#homepage-image-manager").hidden = true;
+      }
+      sendHomepagePreview();
+    });
+    $("#homepage-image-choose").addEventListener("click", () => {
+      renderHomepageImageGallery("website");
+      $("#homepage-image-gallery").hidden = false;
+      $("#homepage-image-upload-panel").hidden = true;
+    });
+    $("#homepage-image-upload").addEventListener("click", () => {
+      $("#homepage-image-gallery").hidden = true;
+      $("#homepage-image-upload-panel").hidden = false;
+      $("#homepage-image-file").click();
+    });
+    $("#homepage-image-gallery").addEventListener("click", (event) => {
+      const tab = event.target.closest("[data-image-gallery-tab]");
+      if (tab) {
+        $("#homepage-image-gallery").querySelectorAll("[data-image-gallery-tab]").forEach((item) => {
+          const selected = item === tab;
+          item.classList.toggle("active", selected);
+          item.setAttribute("aria-selected", String(selected));
+        });
+        renderHomepageImageGallery(tab.dataset.imageGalleryTab);
+        return;
+      }
+      const choice = event.target.closest("[data-homepage-image-path]");
+      if (choice) void useHomepageGalleryAsset(choice.dataset.homepageImagePath);
+    });
+    $("#homepage-image-file").addEventListener("change", (event) => {
+      const file = event.currentTarget.files[0];
+      if (homepageImageUploadPreviewUrl) URL.revokeObjectURL(homepageImageUploadPreviewUrl);
+      homepageImageUploadPreviewUrl = null;
+      $("#homepage-image-upload-preview").hidden = true;
+      $("#homepage-image-upload-confirm").disabled = true;
+      if (!file) return;
+      try {
+        const extension = validateImageFile(file);
+        if (!["jpg", "png", "webp"].includes(extension)) {
+          throw new Error("Choose a JPEG, PNG or WebP image.");
+        }
+        homepageImageUploadPreviewUrl = URL.createObjectURL(file);
+        $("#homepage-image-upload-preview").src = homepageImageUploadPreviewUrl;
+        $("#homepage-image-upload-preview").alt = file.name;
+        $("#homepage-image-upload-preview").hidden = false;
+        $("#homepage-image-upload-confirm").disabled = !homepageImageManagerEnabled();
+        $("#homepage-image-message").textContent = "";
+      } catch (error) {
+        $("#homepage-image-message").textContent = error.message;
+      }
+    });
+    $("#homepage-image-upload-confirm").addEventListener("click", () => {
+      const file = $("#homepage-image-file").files[0];
+      if (file) void addHomepageImage(file);
+    });
+    $("#homepage-image-upload-cancel").addEventListener("click", () => {
+      $("#homepage-image-upload-panel").hidden = true;
+      $("#homepage-image-file").value = "";
+      $("#homepage-image-upload-preview").hidden = true;
+      if (homepageImageUploadPreviewUrl) URL.revokeObjectURL(homepageImageUploadPreviewUrl);
+      homepageImageUploadPreviewUrl = null;
+    });
+    $("#homepage-section-edit").addEventListener("click", () => {
+      editingHomepageSection = true;
+      renderSelectedHomepageSection();
+    });
+    $("#homepage-section-cancel").addEventListener("click", () => {
+      editingHomepageSection = false;
+      renderSelectedHomepageSection();
+    });
+    $("#homepage-section-save").addEventListener("click", () => {
+      try {
+        const updated = collectSelectedSection();
+        homepageData.sections = homepageData.sections.map((row) =>
+          row.section_key === updated.section_key ? updated : row);
+        editingHomepageSection = false;
+        markHomepageDirty();
+        renderHomepageSections();
+        sendHomepagePreview();
+        const label = HOMEPAGE_SECTIONS.find((section) => section.key === updated.section_key).label;
+        setEditorMessage(`${label} changes applied to your draft. Select Save draft to keep them.`, "success");
+      } catch (error) {
+        setEditorMessage(error.message);
+      }
+    });
+    $("#homepage-section-visibility").addEventListener("click", () => {
+      const row = selectedHomepageRow();
+      if (!row) return;
+      if (editingHomepageSection && !window.confirm("Discard the section edits that have not been applied?")) return;
+      editingHomepageSection = false;
+      homepageData.sections = homepageData.sections.map((section) => section.section_key === row.section_key
+        ? { ...section, is_visible: !section.is_visible }
+        : section);
+      markHomepageDirty();
+      renderHomepageSections();
+      sendHomepagePreview();
+      const label = HOMEPAGE_SECTIONS.find((section) => section.key === row.section_key).label;
+      setEditorMessage(`${label} ${row.is_visible ? "hidden" : "shown"} in your draft. Select Save draft to keep the change.`, "success");
     });
     $("#homepage-save").addEventListener("click", () => { void saveDraft(); });
     $("#homepage-preview").addEventListener("click", previewDraft);
@@ -1413,13 +1870,6 @@ import {
     $("#homepage-reload").addEventListener("click", () => {
       if (homepageDirty && !window.confirm("Reloading will discard the edits currently on screen. Continue?")) return;
       void loadHomepageEditor(true);
-    });
-    $("#homepage-preview-close").addEventListener("click", () => { $("#homepage-preview-dialog").hidden = true; });
-    $("#homepage-preview-dialog").addEventListener("click", (event) => {
-      if (event.target.id === "homepage-preview-dialog") event.currentTarget.hidden = true;
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") $("#homepage-preview-dialog").hidden = true;
     });
     supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") showLogin();
