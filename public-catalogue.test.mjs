@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildStudioPreviewSelection,
   preparePublishedHomepage,
+  prepareStudioHomepagePreview,
   renderPublishedHomepage,
   selectVisibleCatalogue,
 } from "./public-catalogue.mjs";
@@ -49,6 +51,65 @@ function renderHeroHeading(headingText) {
     globalThis.document = originalDocument;
   }
 }
+
+test("studio preview selection captures the correct section images and posters", () => {
+  const heroImage = {
+    alt: "Hero alt",
+    currentSrc: "https://example.supabase.co/storage/v1/object/public/catalogue-public/homepage/hero.webp",
+    src: "fallback-hero.webp",
+    matches(selector) { return selector === ".hero-image img"; },
+  };
+  const atelierImage = {
+    alt: "Atelier alt",
+    currentSrc: "https://example.supabase.co/storage/v1/object/public/catalogue-public/homepage/atelier.webp",
+    src: "fallback-atelier.webp",
+    matches(selector) { return selector === ".atelier-photo img"; },
+  };
+  const posterVideo = {
+    id: "stitch-film",
+    paused: true,
+    poster: "https://example.supabase.co/storage/v1/object/public/catalogue-public/homepage/poster.webp",
+  };
+
+  assert.deepEqual(buildStudioPreviewSelection("hero", {
+    closest(selector) {
+      if (selector === "img") return heroImage;
+      if (selector === "video") return null;
+      return null;
+    },
+  }), {
+    imageAlt: "Hero alt",
+    imageCurrentSrc: heroImage.currentSrc,
+    imageField: "image_path",
+    preventDefault: true,
+  });
+
+  assert.deepEqual(buildStudioPreviewSelection("atelier", {
+    closest(selector) {
+      if (selector === "img") return atelierImage;
+      if (selector === "video") return null;
+      return null;
+    },
+  }), {
+    imageAlt: "Atelier alt",
+    imageCurrentSrc: atelierImage.currentSrc,
+    imageField: "image_path",
+    preventDefault: true,
+  });
+
+  assert.deepEqual(buildStudioPreviewSelection("craft-film", {
+    closest(selector) {
+      if (selector === "img") return null;
+      if (selector === "video") return posterVideo;
+      return null;
+    },
+  }), {
+    imageAlt: "",
+    imageCurrentSrc: posterVideo.poster,
+    imageField: "poster_path",
+    preventDefault: false,
+  });
+});
 
 test("published homepage content renders into the existing section using text and validated URLs", () => {
   const image = {};
@@ -102,14 +163,21 @@ test("published homepage content renders into the existing section using text an
       },
     ], [], []);
 
-    renderPublishedHomepage(result, { url: "https://project.supabase.co" });
+    const config = { url: "https://project.supabase.co" };
+    const signedStagingUrl = "https://project.supabase.co/storage/v1/object/sign/catalogue-staging/products/p1/image.webp?token=preview";
+    renderPublishedHomepage(result, config, { "homepage/hero.webp": signedStagingUrl });
 
     assert.deepEqual(heading.children, [{ textContent: "<img src=x onerror=alert(1)>" }]);
-    assert.equal(image.src, "https://project.supabase.co/storage/v1/object/public/catalogue-public/homepage/hero.webp");
+    assert.equal(image.src, signedStagingUrl);
     assert.equal(image.alt, "Couture model");
     assert.equal(button.children[0].textContent, "Explore ");
     assert.equal(button.children[1], arrow);
     assert.equal(hero.hidden, false);
+
+    renderPublishedHomepage(result, config, {
+      "homepage/hero.webp": "https://attacker.example/image.webp",
+    });
+    assert.equal(image.src, "https://project.supabase.co/storage/v1/object/public/catalogue-public/homepage/hero.webp");
   } finally {
     globalThis.document = originalDocument;
   }
@@ -181,6 +249,30 @@ test("published homepage products follow the curated release order", () => {
 
 test("absence of a published homepage release leaves the existing homepage as fallback", () => {
   assert.equal(preparePublishedHomepage(null, [], [], []), null);
+});
+
+test("studio preview applies hidden sections, saved order, and curated product order", () => {
+  const keys = ["hero", "introduction", "craft-film", "collection", "process", "atelier", "cta", "faq"];
+  const sections = keys.map((section_key, sort_order) => ({
+    section_key,
+    section_type: section_key,
+    content: {},
+    is_visible: section_key !== "faq",
+    sort_order: keys.length - sort_order,
+  }));
+  const products = [
+    { id: "design-a", status: "published", homepage_visible: true },
+    { id: "design-b", status: "published", homepage_visible: true },
+  ];
+
+  const result = prepareStudioHomepagePreview(sections, ["design-b", "design-a"], products);
+
+  assert.deepEqual(result.sections.map(({ section_key }) => section_key), [
+    "cta", "atelier", "process", "collection", "craft-film", "introduction", "hero",
+  ]);
+  assert.ok(result.hiddenSectionKeys.includes("faq"));
+  assert.deepEqual(result.products.map(({ id }) => id), ["design-b", "design-a"]);
+  assert.equal(prepareStudioHomepagePreview(sections.slice(1), [], products), null);
 });
 
 const categories = [

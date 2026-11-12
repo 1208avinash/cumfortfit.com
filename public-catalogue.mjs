@@ -1,3 +1,8 @@
+import {
+  isTrustedPreviewMessage,
+  previewMessageTargetOrigin,
+} from "./studio-preview-messaging.mjs";
+
 const PRODUCT_FIELDS = "id,legacy_code,title,description,category_id,status,homepage_visible,lookbook_visible,homepage_sort_order";
 const CATEGORY_FIELDS = "id,name,slug,sort_order";
 const IMAGE_FIELDS = "id,product_id,bucket_id,storage_path,alt_text,caption,sort_order,approved_at";
@@ -8,6 +13,7 @@ const HOMEPAGE_SECTION_KEYS = [
 const SAFE_IMAGE_PATH = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 const SAFE_VIDEO_URL = /^https:\/\/videos[.]pexels[.]com\/video-files\/[0-9]+\/[A-Za-z0-9._-]+[.]mp4$/;
 const SAFE_VIDEO_SOURCE_URL = /^https:\/\/www[.]pexels[.]com\/video\/[A-Za-z0-9-]+\/$/;
+let homepageDesignCardTemplate = null;
 
 async function getRows(config, table, query) {
   const url = new URL(`/rest/v1/${table}`, config.url);
@@ -76,6 +82,23 @@ export function preparePublishedHomepage(release, sections, releaseProducts, pro
     hiddenSectionKeys: HOMEPAGE_SECTION_KEYS.filter((key) => !sectionsByKey.has(key)),
     products: curatedProducts,
   };
+}
+
+export function prepareStudioHomepagePreview(sections, productIds, products) {
+  if (!Array.isArray(sections) || sections.length !== HOMEPAGE_SECTION_KEYS.length ||
+    !Array.isArray(productIds) || !Array.isArray(products)) return null;
+  const keys = new Set();
+  if (sections.some((section) => {
+    if (!HOMEPAGE_SECTION_KEYS.includes(section?.section_key) ||
+      section.section_type !== section.section_key || typeof section.is_visible !== "boolean" ||
+      !Number.isInteger(section.sort_order) || !section.content || typeof section.content !== "object" ||
+      keys.has(section.section_key)) return true;
+    keys.add(section.section_key);
+    return false;
+  }) || keys.size !== HOMEPAGE_SECTION_KEYS.length ||
+    productIds.some((id) => typeof id !== "string")) return null;
+  const releaseProducts = productIds.map((product_id, sort_order) => ({ product_id, sort_order }));
+  return preparePublishedHomepage({ status: "published" }, sections, releaseProducts, products);
 }
 
 async function loadPublishedHomepage(config) {
@@ -155,7 +178,22 @@ function setPublicImage(image, config, path, alt) {
   image.alt = typeof alt === "string" ? alt : "";
 }
 
-export function renderPublishedHomepage(homepage, config) {
+function safeStagingPreviewUrl(config, value) {
+  if (typeof value !== "string") return null;
+  try {
+    const project = new URL(config.url);
+    const candidate = new URL(value);
+    if (project.protocol !== "https:" || project.username || project.password ||
+      candidate.origin !== project.origin ||
+      !candidate.pathname.startsWith("/storage/v1/object/sign/catalogue-staging/") ||
+      !candidate.searchParams.has("token")) return null;
+    return candidate.href;
+  } catch {
+    return null;
+  }
+}
+
+export function renderPublishedHomepage(homepage, config, previewImageUrls = {}) {
   const main = document.querySelector("#main-content");
   const sectionElements = new Map(
     [...main.querySelectorAll("[data-homepage-section]")]
@@ -278,6 +316,18 @@ export function renderPublishedHomepage(homepage, config) {
       list.replaceChildren(...items);
     }
   }
+
+  const setDraftImagePreview = (sectionKey, field, selector, isVideo = false) => {
+    const section = contentByKey.get(sectionKey);
+    const url = section && safeStagingPreviewUrl(config, previewImageUrls[section[field]]);
+    const element = get(sectionKey, selector);
+    if (!element || !url) return;
+    if (isVideo) element.poster = url;
+    else element.src = url;
+  };
+  setDraftImagePreview("hero", "image_path", ".hero-image img");
+  setDraftImagePreview("atelier", "image_path", ".atelier-photo img");
+  setDraftImagePreview("craft-film", "poster_path", "#stitch-film", true);
 }
 
 function setCardContent(card, product, category, image, index, lookbook = false, total = 1) {
@@ -362,7 +412,12 @@ export function selectVisibleCatalogue(products, categories, images, destination
 function renderHomepage(products, categories, images) {
   const grid = document.querySelector("#design-grid");
   const filterBar = document.querySelector(".collection-filters");
-  const template = grid.querySelector(".design-card");
+  if (!homepageDesignCardTemplate) {
+    const template = grid.querySelector(".design-card");
+    if (!template) throw new Error("The homepage design-card template is missing.");
+    homepageDesignCardTemplate = template.cloneNode(true);
+  }
+  const template = homepageDesignCardTemplate;
   const { categoryMap, imageMap, visible } =
     selectVisibleCatalogue(products, categories, images, "homepage");
 
@@ -500,10 +555,141 @@ function renderLookbook(products, categories, images) {
   window.dispatchEvent(new CustomEvent("cfp:catalogue-updated"));
 }
 
+function isStudioPreview() {
+  return new URLSearchParams(window.location.search).get("cfpStudioPreview") === "1" &&
+    window.parent !== window;
+}
+
+export function buildStudioPreviewSelection(sectionKey, target) {
+  const isElement = target && typeof target.closest === "function";
+  const image = isElement ? target.closest("img") : null;
+  const video = isElement ? target.closest("video") : null;
+  const imageField = image && (
+    sectionKey === "hero" && image.matches(".hero-image img") ||
+    sectionKey === "atelier" && image.matches(".atelier-photo img")
+  ) ? "image_path" : video?.id === "stitch-film" && video.paused ? "poster_path" : null;
+
+  return {
+    imageAlt: imageField && image ? image.alt : "",
+    imageCurrentSrc: imageField
+      ? image ? image.currentSrc || image.src : video.poster
+      : "",
+    imageField,
+    preventDefault: !video,
+  };
+}
+
+function enableStudioSectionSelection() {
+  if (!isStudioPreview()) return;
+  let latestRevision = 0;
+  let cachedProductKey = null;
+  let cachedCatalogue = null;
+  let suppressNextClick = false;
+  const previewStyle = document.createElement("style");
+  previewStyle.textContent = "[data-homepage-section]{cursor:pointer}.studio-preview-selected{outline:2px solid #a98768;outline-offset:-2px}.hero:before{z-index:1;pointer-events:none}.hero-image{z-index:0}.hero-content{z-index:2;pointer-events:none}.hero-content>*{pointer-events:auto}";
+  document.head.append(previewStyle);
+  const handleStudioSelection = (event) => {
+    const target = event.target && typeof event.target.closest === "function" ? event.target : null;
+    if (!target) return;
+    const section = target.closest("[data-homepage-section]");
+    if (!section) return;
+    const sectionKey = section.dataset.homepageSection;
+    const selection = buildStudioPreviewSelection(sectionKey, target);
+    if (selection.preventDefault) event.preventDefault();
+    window.parent.postMessage({
+      type: "cfp:homepage-section-selected",
+      sectionKey,
+      imageField: selection.imageField,
+      imageCurrentSrc: selection.imageCurrentSrc,
+      imageAlt: selection.imageAlt,
+    }, previewMessageTargetOrigin(window.location));
+  };
+
+  document.addEventListener("pointerup", (event) => {
+    if (event.button !== 0) return;
+    suppressNextClick = true;
+    window.setTimeout(() => { suppressNextClick = false; }, 0);
+    handleStudioSelection(event);
+  }, true);
+  document.addEventListener("click", (event) => {
+    if (suppressNextClick) return;
+    handleStudioSelection(event);
+  }, true);
+
+  window.addEventListener("message", async (event) => {
+    if (!isTrustedPreviewMessage(event, window.parent, window.location) ||
+      event.data?.type !== "cfp:studio-homepage-draft") return;
+    const { sections, productIds, products, imagePreviewUrls } = event.data;
+    const revision = event.data.previewRevision;
+    if (!Number.isInteger(revision) || revision <= latestRevision) return;
+    latestRevision = revision;
+    try {
+      const homepage = prepareStudioHomepagePreview(sections, productIds, products);
+      if (!homepage) {
+        window.parent.postMessage(
+          { type: "cfp:studio-homepage-preview-error", previewRevision: revision },
+          previewMessageTargetOrigin(window.location),
+        );
+        return;
+      }
+      const productIdsToLoad = homepage.products.map((product) => product.id);
+      const productKey = productIdsToLoad.join(",");
+      if (event.data.refreshCatalogue === true) {
+        cachedCatalogue = null;
+        cachedProductKey = null;
+      }
+      if (!cachedCatalogue || productKey !== cachedProductKey) {
+        const [categories, images] = await Promise.all([
+          getRows(window.CFP_SUPABASE_CONFIG, "categories", {
+            select: CATEGORY_FIELDS,
+            active: "eq.true",
+            order: "sort_order.asc,name.asc",
+          }),
+          productIdsToLoad.length
+            ? getRows(window.CFP_SUPABASE_CONFIG, "product_images", {
+              select: IMAGE_FIELDS,
+              product_id: `in.(${productIdsToLoad.join(",")})`,
+              bucket_id: "eq.catalogue-public",
+              approved_at: "not.is.null",
+              order: "sort_order.asc",
+            })
+            : Promise.resolve([]),
+        ]);
+        if (revision !== latestRevision) return;
+        cachedCatalogue = { categories, images };
+        cachedProductKey = productKey;
+      }
+      if (revision !== latestRevision) return;
+      const { categories, images } = cachedCatalogue;
+      renderPublishedHomepage(homepage, window.CFP_SUPABASE_CONFIG, imagePreviewUrls);
+      renderHomepage(homepage.products, categories, images);
+      document.querySelectorAll("[data-homepage-section]").forEach((section) => {
+        section.classList.toggle(
+          "studio-preview-selected",
+          section.dataset.homepageSection === event.data.selectedSectionKey,
+        );
+      });
+      window.parent.postMessage(
+        { type: "cfp:studio-homepage-preview-ready", previewRevision: revision },
+        previewMessageTargetOrigin(window.location),
+      );
+    } catch (error) {
+      console.warn("The homepage draft preview could not be refreshed.", error);
+      if (revision === latestRevision) {
+        window.parent.postMessage(
+          { type: "cfp:studio-homepage-preview-error", previewRevision: revision },
+          previewMessageTargetOrigin(window.location),
+        );
+      }
+    }
+  });
+}
+
 async function loadPublicCatalogue() {
   const page = document.body.dataset.publicCatalogue;
   const config = window.CFP_SUPABASE_CONFIG;
   if (!config?.url || !config?.publishableKey || !["homepage", "lookbook"].includes(page)) return;
+  if (isStudioPreview()) return;
   let projectUrl;
   try {
     projectUrl = new URL(config.url);
@@ -560,5 +746,6 @@ async function loadPublicCatalogue() {
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
+  enableStudioSectionSelection();
   void loadPublicCatalogue();
 }
