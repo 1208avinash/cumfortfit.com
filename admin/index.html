@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f3ee">
+  <title>Studio Admin · CUSTOM FIT PRIME</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./homepage-editor.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0"></script>
+  <script src="./config.js"></script>
+  <script type="module" src="./admin.js"></script>
+</head>
+<body>
+  <main id="app" class="app-shell">
+    <section id="setup-screen" class="auth-wrap" hidden>
+      <div class="auth-card">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO CONTROL ROOM</p><h1>Connect your studio.</h1>
+        <p class="muted">The admin interface is ready. Add the Supabase project URL and publishable key in the local <code>admin/config.js</code> file to enable secure sign-in.</p>
+        <div class="notice">Configuration is intentionally not stored in this page. Never put a Supabase service-role key in browser code.</div>
+        <p class="small">Contact your studio administrator for setup assistance.</p>
+      </div>
+    </section>
+    <section id="login-screen" class="auth-wrap" hidden>
+      <form id="login-form" class="auth-card">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO CONTROL ROOM</p><h1>Welcome back.</h1>
+        <p class="muted">Sign in with an invited studio account.</p>
+        <label>Email address<input id="email" type="email" autocomplete="username" required></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Sign in securely</button>
+        <p id="login-message" class="message" role="status"></p>
+        <p class="small">Admin access is invitation-only. <a href="../index.html">Return to the public website</a></p>
+      </form>
+    </section>
+    <section id="dashboard-screen" class="workspace" hidden>
+      <aside class="sidebar">
+        <a class="wordmark" href="../index.html">CUSTOM FIT <span>PRIME</span></a>
+        <p class="eyebrow">STUDIO ADMIN</p>
+        <nav id="side-nav" aria-label="Admin sections">
+          <button class="nav-item active" data-view="overview">Overview</button>
+          <button class="nav-item" data-view="catalogue">Catalogue</button>
+          <button class="nav-item" data-view="lookbook">Lookbook</button>
+          <button class="nav-item" data-view="categories">Categories</button>
+          <button class="nav-item" data-view="media">Image approvals</button>
+          <button class="nav-item" data-view="content">Site content</button>
+          <button class="nav-item admin-only" data-view="homepage">Homepage editor</button>
+          <button class="nav-item owner-only" data-view="team">Team & access</button>
+          <button class="nav-item admin-only" data-view="activity">Audit history</button>
+        </nav>
+        <div class="sidebar-bottom"><a href="../index.html" target="_blank" rel="noopener">View public website ↗</a><button id="sign-out" class="text-button">Sign out</button></div>
+      </aside>
+      <section class="main-panel">
+        <header class="topbar"><div><p class="eyebrow">CUSTOM FIT PRIME / ADMIN</p><h1 id="view-title">Overview</h1></div><div class="user-chip"><span id="user-email"></span><b id="user-role"></b></div></header>
+        <div id="workspace-content" class="content-area">
+          <div id="overview-view">
+            <div class="welcome"><div><p class="eyebrow">YOUR STUDIO, IN FOCUS</p><h2>Good work begins with a clear view.</h2><p class="muted">Manage products, design references and the visual stories that shape the CUSTOM FIT PRIME catalogue.</p></div><div class="welcome-mark">CFP</div></div>
+            <div class="stat-grid">
+              <article class="stat-card"><span>Catalogue records</span><strong>—</strong><small>Connect the database to load records</small></article>
+              <article class="stat-card"><span>Published designs</span><strong>—</strong><small>Live catalogue visibility</small></article>
+              <article class="stat-card"><span>Pending image reviews</span><strong>—</strong><small>Staging approvals</small></article>
+              <article class="stat-card"><span>Draft content</span><strong>—</strong><small>Work awaiting publication</small></article>
+            </div>
+            <div class="section-card"><div><p class="eyebrow">IMPLEMENTATION STATUS</p><h3>Secure foundation</h3><p class="muted">Catalogue, categories and image approvals use the existing catalogue tables and role policies. Public images appear only when approved and attached to published products enabled for a public destination.</p></div><span class="status-pill">AUTHENTICATED</span></div>
+            <p id="workspace-message" class="message" role="status"></p>
+          </div>
+          <section id="catalogue-view" class="catalogue-view" hidden aria-labelledby="catalogue-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">PRODUCT MANAGEMENT</p>
+                <h2 id="catalogue-title">Catalogue</h2>
+                <p class="muted">Manage product records. Archiving keeps the record and does not permanently delete it.</p>
+              </div>
+              <button id="catalogue-add" class="catalogue-button catalogue-primary" type="button">Add product</button>
+            </div>
+            <p id="catalogue-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <section id="catalogue-form-panel" class="catalogue-card" hidden>
+              <div class="catalogue-heading form-heading">
+                <h3 id="catalogue-form-title">Add product</h3>
+                <button id="catalogue-cancel" class="catalogue-button" type="button">Cancel</button>
+              </div>
+              <form id="catalogue-form">
+                <div class="catalogue-form-grid">
+                  <label>Product code<input name="legacy_code" required autocomplete="off"></label>
+                  <label>Slug<input name="slug" required autocomplete="off"></label>
+                  <label>Title<input name="title" required autocomplete="off"></label>
+                  <label>Record type<select name="record_type" required>
+                    <option value="design_reference">Design reference</option>
+                    <option value="orderable_product">Orderable product</option>
+                  </select></label>
+                  <label>Audience<select name="audience" required>
+                    <option value="not_set">Not set</option>
+                    <option value="women">Women</option>
+                    <option value="men">Men</option>
+                    <option value="unisex">Unisex</option>
+                  </select></label>
+                  <label>Category<select id="catalogue-category" name="category_id"></select></label>
+                  <label id="catalogue-status-field">Status<select name="status" required>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                  </select></label>
+                  <label class="catalogue-description">Description<textarea name="description" rows="4"></textarea></label>
+                </div>
+                <p id="catalogue-form-message" class="catalogue-message" role="alert"></p>
+                <div class="catalogue-form-actions">
+                  <button id="catalogue-save" class="catalogue-button catalogue-primary" type="submit">Save product</button>
+                </div>
+              </form>
+            </section>
+            <div class="catalogue-toolbar">
+              <label>Search products<input id="catalogue-search" type="search" placeholder="Title, code, slug or description"></label>
+              <label>Filter by status<select id="catalogue-status-filter">
+                <option value="all" selected>All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select></label>
+              <label>Filter by category<select id="catalogue-category-filter"><option value="all">All categories</option></select></label>
+              <button id="catalogue-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <p id="catalogue-results-summary" class="catalogue-results-summary" aria-live="polite"></p>
+            <div id="catalogue-loading" class="catalogue-state" hidden>Loading catalogue…</div>
+            <div id="catalogue-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="catalogue-empty" class="catalogue-state" hidden>No products match these filters.</div>
+            <div id="catalogue-table-wrap" class="catalogue-table-wrap" hidden>
+              <table class="catalogue-table">
+                <thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Type</th><th>Audience</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead>
+                <tbody id="catalogue-rows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section id="lookbook-view" class="catalogue-view" hidden aria-labelledby="lookbook-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">LOOKBOOK COLLECTION</p>
+                <h2 id="lookbook-title">Lookbook</h2>
+                <p class="muted">Choose published designs to show in the public Lookbook. Draft and archived products remain private.</p>
+              </div>
+              <button id="lookbook-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <p id="lookbook-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <div class="catalogue-toolbar">
+              <label>Search products<input id="lookbook-search" type="search" placeholder="Name, code or category"></label>
+              <label>Filter by status<select id="lookbook-status-filter">
+                <option value="all" selected>All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select></label>
+            </div>
+            <p id="lookbook-results-summary" class="catalogue-results-summary" aria-live="polite"></p>
+            <div id="lookbook-loading" class="catalogue-state" hidden>Loading products…</div>
+            <div id="lookbook-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="lookbook-empty" class="catalogue-state" hidden>No products match these filters.</div>
+            <div id="lookbook-products" class="lookbook-admin-grid"></div>
+          </section>
+          <section id="categories-view" class="managed-view" hidden aria-labelledby="categories-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">PUBLIC CATALOGUE</p>
+                <h2 id="categories-title">Categories</h2>
+                <p class="muted">Inactive categories are hidden from public navigation. Reactivate a category to restore it.</p>
+              </div>
+              <button id="category-add" class="catalogue-button catalogue-primary" type="button">Add category</button>
+            </div>
+            <p id="category-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <section id="category-form-panel" class="catalogue-card" hidden>
+              <div class="catalogue-heading form-heading">
+                <h3 id="category-form-title">Add category</h3>
+                <button id="category-cancel" class="catalogue-button" type="button">Cancel</button>
+              </div>
+              <form id="category-form">
+                <div class="catalogue-form-grid">
+                  <label>Category name<input name="name" required maxlength="120"></label>
+                  <label>Slug<input name="slug" required maxlength="120" pattern="[a-z0-9]+(-[a-z0-9]+)*"></label>
+                  <label>Display order<input name="sort_order" type="number" min="0" step="1" required value="0"></label>
+                  <label class="category-active-field"><input name="active" type="checkbox" checked> Active on the public website</label>
+                </div>
+                <p id="category-form-message" class="catalogue-message" role="alert"></p>
+                <div class="catalogue-form-actions">
+                  <button id="category-save" class="catalogue-button catalogue-primary" type="submit">Save category</button>
+                </div>
+              </form>
+            </section>
+            <div class="managed-toolbar">
+              <label>Search categories<input id="category-search" type="search" placeholder="Name or slug"></label>
+              <label>Filter by status<select id="category-status-filter">
+                <option value="all">All categories</option><option value="active">Active</option><option value="inactive">Inactive</option>
+              </select></label>
+              <button id="category-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <div id="category-loading" class="catalogue-state" hidden>Loading categories…</div>
+            <div id="category-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="category-empty" class="catalogue-state" hidden>No categories match these filters.</div>
+            <div id="category-table-wrap" class="catalogue-table-wrap" hidden>
+              <table class="catalogue-table">
+                <thead><tr><th>Category</th><th>Slug</th><th>Order</th><th>Public status</th><th>Actions</th></tr></thead>
+                <tbody id="category-rows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section id="media-view" class="managed-view" hidden aria-labelledby="media-title">
+            <div class="catalogue-heading">
+              <div>
+                <p class="eyebrow">IMAGE APPROVAL WORKFLOW</p>
+                <h2 id="media-title">Image approvals</h2>
+                <p class="muted">Images belong to products; their category is inherited from the product. Editors can upload staging images. Only Owner and Admin can approve or hide public images.</p>
+              </div>
+            </div>
+            <p id="media-message" class="catalogue-message" role="status" aria-live="polite"></p>
+            <section class="catalogue-card">
+              <h3 class="media-form-title">Upload image to staging</h3>
+              <form id="media-upload-form">
+                <div class="catalogue-form-grid">
+                  <label>Product (and its category)<select id="media-product" name="product_id" required></select></label>
+                  <label>Image file<input id="media-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" required></label>
+                  <label>Alternative text<input name="alt_text" maxlength="500" placeholder="Describe the image for accessibility"></label>
+                  <label>Caption<input name="caption" maxlength="500"></label>
+                  <label>Display order<input name="sort_order" type="number" min="0" step="1" value="0" required></label>
+                </div>
+                <div id="media-upload-preview" class="media-upload-preview" hidden>
+                  <img id="media-preview-image" alt="Selected image preview">
+                </div>
+                <p id="media-upload-message" class="catalogue-message" role="alert"></p>
+                <div class="catalogue-form-actions">
+                  <button id="media-upload" class="catalogue-button catalogue-primary" type="submit">Upload to staging</button>
+                </div>
+              </form>
+            </section>
+            <div class="managed-toolbar">
+              <label>Search images<input id="media-search" type="search" placeholder="Product, category, code or alt text"></label>
+              <label>Filter by status<select id="media-status-filter">
+                <option value="all">All image states</option><option value="staging">Staging / hidden</option><option value="public">Approved public</option>
+              </select></label>
+              <button id="media-reload" class="catalogue-button" type="button">Reload</button>
+            </div>
+            <div id="media-loading" class="catalogue-state" hidden>Loading images…</div>
+            <div id="media-error" class="catalogue-state catalogue-error" hidden></div>
+            <div id="media-empty" class="catalogue-state" hidden>No images match these filters.</div>
+            <div id="media-grid" class="media-grid"></div>
+            <input id="media-replace-file" type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden>
+          </section>
+          <section id="homepage-editor-view" class="homepage-editor" hidden aria-labelledby="homepage-editor-title">
+            <div class="editor-intro">
+              <div>
+                <p class="eyebrow">PUBLIC WEBSITE / VERSIONED CONTENT</p>
+                <h2 id="homepage-editor-title">Studio website editor</h2>
+                <p class="muted">Select a section in the website preview to edit it. Your saved draft stays private until you publish.</p>
+              </div>
+              <div class="release-meta">
+                <span id="homepage-release-status" class="status-pill">LOADING DRAFT</span>
+                <small id="homepage-release-version"></small>
+              </div>
+            </div>
+            <p id="homepage-editor-message" class="editor-message" role="status" aria-live="polite"></p>
+            <div class="studio-toolbar">
+              <p id="homepage-draft-note" class="muted">Loading your private homepage draft…</p>
+              <div class="studio-workflow">
+                <button id="homepage-save" class="catalogue-button catalogue-primary" type="button" disabled>Save draft</button>
+                <button id="homepage-preview" class="catalogue-button" type="button" disabled>Preview draft</button>
+                <button id="homepage-publish" class="publish-button" type="button" disabled>Publish website</button>
+                <button id="homepage-reload" class="catalogue-button" type="button" hidden>Reload draft</button>
+              </div>
+            </div>
+            <div id="homepage-section-list" class="studio-section-nav" aria-label="Homepage sections"></div>
+            <div class="visual-editor-grid">
+              <div class="visual-preview-wrap">
+                <div class="visual-preview-heading"><strong>Website preview</strong><span>Draft changes are visible here only</span></div>
+                <iframe id="homepage-live-preview" title="Complete CUSTOM FIT PRIME homepage draft preview" src="../index.html?cfpStudioPreview=1" loading="lazy" referrerpolicy="same-origin"></iframe>
+              </div>
+              <aside class="section-editor-panel">
+                <div class="section-editor-heading">
+                  <div><p class="eyebrow">SELECTED SECTION</p><h3 id="homepage-selected-section">Choose a section</h3></div>
+                  <button id="homepage-section-visibility" class="catalogue-button" type="button" disabled>Hide section</button>
+                </div>
+                <p id="homepage-section-summary" class="muted">Select a section in the preview or from the section list to make changes.</p>
+                <button id="homepage-section-edit" class="catalogue-button catalogue-primary" type="button" disabled>Edit section</button>
+                <section id="homepage-section-editor" class="section-fields editor-card" hidden>
+                  <div id="homepage-section-fields"></div>
+                  <div class="catalogue-form-actions">
+                    <button id="homepage-section-cancel" class="catalogue-button" type="button">Cancel</button>
+                    <button id="homepage-section-save" class="catalogue-button catalogue-primary" type="button">Apply changes</button>
+                  </div>
+                </section>
+                <section id="homepage-image-manager" class="editor-card homepage-image-manager" hidden aria-labelledby="homepage-image-manager-title">
+                  <div class="editor-card-heading">
+                    <div><p class="eyebrow">SECTION IMAGE</p><h3 id="homepage-image-manager-title">Choose an image</h3></div>
+                  </div>
+                  <img id="homepage-image-current" class="homepage-image-current" alt="" hidden>
+                  <p id="homepage-image-message" class="catalogue-message" role="status" aria-live="polite"></p>
+                  <div class="homepage-image-actions">
+                    <button id="homepage-image-choose" class="catalogue-button" type="button">Choose Existing Image</button>
+                    <button id="homepage-image-upload" class="catalogue-button" type="button">Upload New Image</button>
+                  </div>
+                  <div id="homepage-image-gallery" class="homepage-image-gallery" hidden>
+                    <div class="homepage-image-tabs" role="tablist" aria-label="Image collections">
+                      <button class="catalogue-button active" type="button" data-image-gallery-tab="website" role="tab" aria-selected="true">Website Images</button>
+                      <button class="catalogue-button" type="button" data-image-gallery-tab="lookbook" role="tab" aria-selected="false">Lookbook Images</button>
+                      <button class="catalogue-button" type="button" data-image-gallery-tab="products" role="tab" aria-selected="false">Product Images</button>
+                    </div>
+                    <div id="homepage-image-gallery-grid" class="homepage-image-gallery-grid"></div>
+                  </div>
+                  <div id="homepage-image-upload-panel" class="homepage-image-upload-panel" hidden>
+                    <label class="homepage-image-file-label">Choose a JPEG, PNG or WebP image
+                      <input id="homepage-image-file" type="file" accept="image/jpeg,image/png,image/webp">
+                    </label>
+                    <img id="homepage-image-upload-preview" class="homepage-image-current" alt="Selected image preview" hidden>
+                    <div class="catalogue-form-actions">
+                      <button id="homepage-image-upload-cancel" class="catalogue-button" type="button">Cancel</button>
+                      <button id="homepage-image-upload-confirm" class="catalogue-button catalogue-primary" type="button" disabled>Use this image</button>
+                    </div>
+                  </div>
+                  <p class="small">Images are added to private staging. Approve them in Image approvals before publishing the homepage. Your original website image files are not changed.</p>
+                </section>
+                <section id="homepage-product-selection" class="editor-card product-selection" hidden>
+                  <div class="editor-card-heading">
+                    <div><p class="eyebrow">FEATURED DESIGNS</p><h3>Homepage collection</h3></div>
+                    <span id="homepage-product-count" class="status-pill">0 OF 8 SELECTED</span>
+                  </div>
+                  <p class="muted">Choose eight published designs that are enabled for the homepage.</p>
+                  <div id="homepage-product-list" class="homepage-product-list"></div>
+                </section>
+                <p class="small">Your changes remain a private draft until you publish.</p>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
