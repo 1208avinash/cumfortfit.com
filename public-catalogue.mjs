@@ -687,6 +687,8 @@ function enableStudioSectionSelection() {
 
 async function loadPublicCatalogue() {
   const page = document.body.dataset.publicCatalogue;
+  // Keep the static Lookbook authoritative until additive integration is approved.
+  if (page === "lookbook") return;
   const config = window.CFP_SUPABASE_CONFIG;
   if (!config?.url || !config?.publishableKey || !["homepage", "lookbook"].includes(page)) return;
   if (isStudioPreview()) return;

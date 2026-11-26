@@ -10,6 +10,54 @@ import {
 
 const publishedRelease = { id: "release-1", status: "published" };
 
+async function captureCatalogueStartup(page, response, suffix) {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const requests = [];
+  let documentQueries = 0;
+  globalThis.window = {
+    location: { search: "" },
+    CFP_SUPABASE_CONFIG: { url: "https://project.supabase.co", publishableKey: "test-key" },
+  };
+  globalThis.document = {
+    body: { dataset: { publicCatalogue: page } },
+    querySelector() { documentQueries++; throw new Error("Unexpected DOM access"); },
+  };
+  globalThis.fetch = async (url) => {
+    requests.push(new URL(url).pathname);
+    if (response === "failure") throw new Error("Simulated network failure");
+    return { ok: true, json: async () => [] };
+  };
+  console.warn = () => {};
+  try {
+    await import(`./public-catalogue.mjs?startup-test=${suffix}`);
+    await new Promise((resolve) => setImmediate(resolve));
+    return { requests, documentQueries };
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+}
+
+test("public Lookbook startup keeps static cards without catalogue requests", async () => {
+  for (const response of ["empty", "failure"]) {
+    const result = await captureCatalogueStartup("lookbook", response, `lookbook-${response}`);
+    assert.deepEqual(result.requests, []);
+    assert.equal(result.documentQueries, 0);
+  }
+});
+
+test("homepage startup continues to request the dynamic catalogue", async () => {
+  const result = await captureCatalogueStartup("homepage", "failure", "homepage");
+  assert.deepEqual(result.requests, ["/rest/v1/categories", "/rest/v1/homepage_releases"]);
+});
+
 function renderHeroHeading(headingText) {
   const heading = {
     children: [],
